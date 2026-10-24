@@ -21,7 +21,7 @@ UBUNTU_PHP_REQUEST="${PHP_VER:-auto}"
 PHP_VER="${PHP_VER:-8.4}"
 NODE_MAJOR="${NODE_MAJOR:-20}"
 
-REPO_URL="${REPO_URL:-https://github.com/admxlz/admixcentral.git}"
+REPO_URL="${REPO_URL:-https://github.com/tr0uble84/admixcentral-Jay.git}"
 INSTALL_DIR="${INSTALL_DIR:-/var/www/admixcentral}"
 WEB_USER="${WEB_USER:-www-data}"
 WEB_GROUP="${WEB_GROUP:-www-data}"

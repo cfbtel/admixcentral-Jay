@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — J Behi's external API contribution
+- Company-scoped and explicitly authorized all-company MSP inventory REST API
+  with Sanctum authentication, HTTPS enforcement, rate limits and safe field lists.
+- Private CLI token issuance/revocation, including explicitly authorized
+  non-expiring global-administrator tokens.
+- Per-firewall and bulk cached telemetry endpoints with isolated background
+  collection, freshness metadata, interface rates and supported VPN status.
+- OpenAPI 1.2 contract, installation/operations documentation, Postman/Python
+  examples and API authentication/isolation/collector regression tests.
+
+### Security
+- Pin patched league/commonmark 2.10.4 and symfony/http-foundation 7.4.21.
+
 ## [0.4.4] - 2026-02-13
 
 ### Changed

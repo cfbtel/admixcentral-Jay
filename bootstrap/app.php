@@ -9,17 +9,31 @@ use Illuminate\Http\Request;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',
+        api: __DIR__ . '/../routes/api.php',
         commands: __DIR__ . '/../routes/console.php',
         channels: __DIR__ . '/../routes/channels.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(\App\Http\Middleware\IntegrationApiBoundary::class);
         $middleware->append(\App\Http\Middleware\EnsureSystemIsSetup::class);
         $middleware->alias([
             'deny.readonly' => \App\Http\Middleware\DenyReadOnly::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->shouldRenderJsonWhen(fn (Request $request, \Throwable $e) =>
+            $request->is('api/v1', 'api/v1/*') || $request->expectsJson());
+        $exceptions->respond(function (\Symfony\Component\HttpFoundation\Response $response) {
+            if (request()->is('api/v1', 'api/v1/*')) {
+                if ($response->getStatusCode() >= 500) {
+                    $response = response()->json(['message' => 'Server error.'], $response->getStatusCode());
+                }
+                $response->headers->set('Cache-Control', 'no-store, private');
+                $response->headers->set('X-Content-Type-Options', 'nosniff');
+            }
+            return $response;
+        });
         $exceptions->dontFlash(['api_key', 'api_secret', 'api_token', 'ssh_password', 'opn_password']);
         // Swallow Reverb/WebSocket broadcast failures so they never crash
         // a user-facing HTTP request. The operation (e.g. saving a firewall)

@@ -1,0 +1,15 @@
+[program:admixcentral-integration-status]
+process_name=%(program_name)s_%(process_num)02d
+command=/usr/bin/php /var/www/admixcentral/artisan queue:work redis --queue=integration-status --sleep=2 --tries=1 --timeout=75 --max-time=3600
+directory=/var/www/admixcentral
+user=www-data
+numprocs=2
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+stopwaitsecs=85
+redirect_stderr=true
+stdout_logfile=/var/www/admixcentral/storage/logs/integration-status-worker.log
+stdout_logfile_maxbytes=5MB
+stdout_logfile_backups=2

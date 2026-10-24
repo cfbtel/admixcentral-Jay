@@ -1,5 +1,31 @@
 # AdmixCentral
 
+## J Behi's external API features
+
+This fork of [a-d-m-x/admixcentral](https://github.com/a-d-m-x/admixcentral) adds
+external integration features contributed by **J Behi**:
+
+- Sanctum bearer-token REST API under `/api/v1`, with company isolation and
+  explicit MSP access across all companies.
+- CLI token issuance/revocation, finite expiration by default, and an explicit
+  non-expiring token option restricted to global administrators.
+- Paginated company/firewall inventory plus per-firewall and bulk status:
+  system details, resource usage, interfaces/traffic, gateways, service/rule counts
+  and supported runtime VPN state.
+- Background-only telemetry collection, snapshot age/staleness, read-only
+  endpoints, HTTPS enforcement, rate limits and credential-safe serialization.
+- OpenAPI 3.0 documentation, Postman examples and automated feature tests.
+
+**Start here:** [Installation](docs/EXTERNAL-API-INSTALL.md) ·
+[Inventory/token guide](docs/external-api-v1.md) ·
+[Status fields and examples](docs/ADMIXCENTRAL-STATUS-API.md) ·
+[OpenAPI](docs/openapi-v1.json) · [Contributor notes](docs/J-BEHI-API-FEATURES.md).
+
+The API reports registered pfSense/OPNsense firewalls. Unsupported readings remain
+null; this does not add general switch/LAN discovery. The original AdmixCentral
+project and its existing author attribution are retained below.
+
+
 AdmixCentral is a centralized firewall management dashboard engineered for managing multiple **pfSense®** and **OPNsense®** instances from a single pane of glass. It provides a unified, mobile-first interface for system administrators and MSPs to manage firewalls, companies, and users across hybrid firewall deployments.
 
 ## Features
@@ -220,7 +246,7 @@ Required PHP extensions:
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/a-d-m-x/admixcentral.git
+git clone https://github.com/tr0uble84/admixcentral-Jay.git admixcentral
 cd admixcentral
 ```
 
@@ -474,7 +500,7 @@ To manage a pfSense firewall, ensure the [pfSense REST API (pfRest)](https://git
 1. Log in to AdmixCentral as an administrator.
 2. Navigate to **Firewalls > Add Firewall**.
 3. Select **pfSense** as the firewall type.
-4. Enter the **Firewall Name**, **URL** (e.g. `https://192.168.1.1`), and **API Credentials** (Username/Password or API Token).
+4. Enter the **Firewall Name**, **URL** (e.g. `https://192.0.2.1`), and **API Credentials** (Username/Password or API Token).
 5. Click **Connect**. AdmixCentral will verify connectivity, fetch system info and interfaces, and register the firewall.
 
 ### Adding an OPNsense Firewall
@@ -497,7 +523,7 @@ OPNsense includes a built-in REST API out of the box — no third-party packages
 2. **Add to AdmixCentral**:
    - In AdmixCentral, navigate to **Firewalls > Add Firewall**.
    - Select **OPNsense** as the firewall type.
-   - Enter the **Firewall Name** and **URL** (e.g. `https://192.168.240.11`).
+   - Enter the **Firewall Name** and **URL** (e.g. `https://192.0.2.11`).
    - Paste the 80-character `key` string from the downloaded file into **OPNsense API Key** and the `secret` string into **OPNsense API Secret**.
    > **Important:** OPNsense's REST API (`/api/*`) strictly authenticates using the generated API Key and Secret pair. Do **not** enter your login username (`root`) or Web GUI password in the API Key/Secret fields.
    - If your OPNsense instance uses a self-signed or internal certificate, expand **Trust a native or self-signed HTTPS certificate** and upload your exported `.crt`/`.pem` certificate file.
@@ -550,8 +576,8 @@ AdmixCentral stores the certificate's public key and enforces it on every subseq
 
 The certificate must have a **Subject Alternative Name (SAN)** or **Common Name (CN)** that matches the hostname or IP address in the Firewall URL you configure in AdmixCentral. A certificate without a matching hostname/SAN will be rejected by TLS hostname verification even after enrollment.
 
-> **Using a bare IP address (e.g. `https://192.168.1.1`)?**
-> The certificate must include that IP address as an IP SAN (`IP:192.168.1.1`), not just as the CN. Most firewall web GUIs do not add IP SANs to auto-generated certificates. Using a hostname is strongly recommended.
+> **Using a bare IP address (e.g. `https://192.0.2.1`)?**
+> The certificate must include that IP address as an IP SAN (`IP:192.0.2.1`), not just as the CN. Most firewall web GUIs do not add IP SANs to auto-generated certificates. Using a hostname is strongly recommended.
 
 #### Step 1 — Create a private CA and certificate on the firewall
 
