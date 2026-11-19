@@ -179,7 +179,11 @@ class SystemConfigurationService
      */
     public function updateSystemHostname(string $hostname, string $scheme = 'https'): void
     {
-        $appUrl = "{$scheme}://{$hostname}";
+        // Keep a non-standard port (e.g. https://host:26039 behind a NAT) when the host name stays the same;
+        // dropping it sends every link, asset and redirect to the wrong port.
+        $current = parse_url((string) config('app.url'));
+        $keepPort = (($current['host'] ?? null) === $hostname && !empty($current['port'])) ? (int) $current['port'] : null;
+        $appUrl = "{$scheme}://{$hostname}" . ($keepPort ? ":{$keepPort}" : '');
 
         $port = $scheme === 'https' ? '443' : '80';
 

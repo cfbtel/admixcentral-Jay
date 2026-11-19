@@ -67,7 +67,7 @@ jobs:
         run: |
           composer install --no-scripts --no-plugins --no-interaction --prefer-dist --no-progress
           php artisan package:discover --no-ansi
-          vendor/bin/phpunit tests/Feature/VpnModuleTest.php tests/Feature/MandrillMailTest.php
+          vendor/bin/phpunit tests/Feature/VpnModuleTest.php tests/Feature/MandrillMailTest.php tests/Feature/SystemSettingsPortTest.php
 
       - name: Release notes from CHANGELOG.md
         if: steps.v.outputs.exists == 'false'

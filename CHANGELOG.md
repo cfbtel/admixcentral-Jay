@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.8.2
+- Saving System Settings no longer rewrites APP_URL without its port (e.g. `https://host:26039`), which sent the
+  browser to the wrong port after saving and broke the page styles until `.env` was fixed. When the host name and
+  scheme are unchanged, `.env` and Nginx are left alone; SSL changes on the same host keep the custom port.
+
 ### Added — v0.8.1
 - Mandrill (Mailchimp Transactional, mandrillapp.com) as a mail driver in System Settings → Email Configuration,
   sent through Mandrill's HTTPS API (messages/send-raw). The API key is stored encrypted and never shown again.

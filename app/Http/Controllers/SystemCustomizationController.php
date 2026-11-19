@@ -146,6 +146,7 @@ class SystemCustomizationController extends Controller
             $parsed = parse_url($currentUrl);
             $currentHost = $parsed['host'] ?? null;
             $currentScheme = $parsed['scheme'] ?? 'http';
+            $currentPort = $parsed['port'] ?? null;
 
             // Detect Hostname Change
             if ($currentHost && $hostname !== $currentHost) {
@@ -157,16 +158,17 @@ class SystemCustomizationController extends Controller
 
                 // Apply new Nginx Config (HTTP) via uninstall method (reverts to HTTP standard)
                 $sslManager->uninstall($hostname);
-            } else {
-                // Hostname unchanged, standard update
+            } elseif ($scheme !== $currentScheme) {
+                // Hostname unchanged, scheme changed (keeps a custom port)
                 $configService->updateSystemHostname($hostname, $scheme);
             }
+            // Nothing changed: leave .env and Nginx alone (saving other settings must not rewrite APP_URL).
 
             SystemSetting::updateOrCreate(['key' => 'site_url'], ['value' => $hostname]);
             SystemSetting::updateOrCreate(['key' => 'site_protocol'], ['value' => $scheme]);
 
             // Force redirect if the full URL (scheme + host) has changed
-            $newBaseUrl = "{$scheme}://{$hostname}";
+            $newBaseUrl = "{$scheme}://{$hostname}" . ($hostname === $currentHost && $currentPort ? ":{$currentPort}" : '');
             if (rtrim($newBaseUrl, '/') !== rtrim(config('app.url'), '/')) {
                 return redirect($newBaseUrl . '/system/settings')->with('success', 'System settings updated. Redirecting to new address...');
             }
