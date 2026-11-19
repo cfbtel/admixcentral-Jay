@@ -6,7 +6,7 @@
         <p><strong>Sign in as a Global Administrator</strong> of {{ $company->name }}'s Microsoft 365 and accept the permissions. Then, in your Microsoft 365, AdmixCentral will:</p>
         <ul>
             <li>create an app named <strong>{{ $appName }}</strong> (only for your organization),</li>
-            <li>give it permission to sign people in and to read your user list (to see who can use the VPN, and to stop access when an account is disabled),</li>
+            <li>give it permission to sign people in and to read your users and group memberships (to see who can use the VPN, to use groups such as "VPN", and to stop access when an account is disabled or leaves the group),</li>
             <li>create its secret (valid 2 years) and keep it encrypted at CFBTEL,</li>
             <li>then remove CFBTEL's setup access from your Microsoft 365.</li>
         </ul>

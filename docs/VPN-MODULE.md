@@ -30,7 +30,7 @@ VPN page:
   wizard):
   * creates the app **CFBTEL VPN** (this organization only, redirect URI `https://<portal host>/vpn/callback`);
   * adds a client secret (2 years) and saves it encrypted, with the app ID and tenant;
-  * creates its enterprise application and grants admin consent: application `User.Read.All` and delegated
+  * creates its enterprise application and grants admin consent: application `User.Read.All` and `GroupMember.Read.All`, and delegated
     `openid profile email User.Read` for the whole organization;
   * reads the tenant name and verified domains, and adds the domains no other company uses as work email domains;
   * deletes CFBTEL's setup app from the company's tenant, so no setup access stays behind.
@@ -43,7 +43,7 @@ VPN page:
   encrypted.
   * Account type: *this organizational directory only*.
   * Redirect URI (Web): `https://<portal host>/vpn/callback`.
-  * Graph permissions: delegated `openid`, `profile`, `email`, `User.Read`; application `User.Read.All` → **Grant
+  * Graph permissions: delegated `openid`, `profile`, `email`, `User.Read`; application `User.Read.All`, `GroupMember.Read.All` → **Grant
     admin consent**.
   * The company's staff sign-in, people search and access checks then use only that app. Renew the secret on the
     VPN page before it expires.
@@ -64,7 +64,7 @@ Entra admin center → **App registrations → New registration**:
   - `https://<portal host>/vpn/consent/callback`
 - **API permissions → Microsoft Graph:**
   - delegated: `openid`, `profile`, `email`, `User.Read`;
-  - application: `User.Read.All`;
+  - application: `User.Read.All`, `GroupMember.Read.All`;
   - then **Grant admin consent**.
 - **Certificates & secrets → New client secret.** Copy the *Value*.
 
@@ -73,6 +73,22 @@ In AdmixCentral, open **VPN Access** in the sidebar (global admins). Enter:
 - the secret (stored encrypted with the app key);
 - the portal host name;
 - the device limit per person.
+
+## 1a-2. Microsoft 365 groups (optional)
+
+On a company's VPN page → **Who has VPN access → Microsoft 365 groups**, search the company's groups (e.g. "VPN")
+and use one:
+* **Whole company:** members of the group get VPN access without being added one by one; they're added the first
+  time they sign in ("through group"). Nested groups count.
+* **Only for one firewall:** only members of that group can use that firewall (it's hidden from everyone else, and
+  adding a device there is refused). Its members also get VPN access for it even when they aren't in the company
+  group. Firewalls without a group are open to everyone with VPN access in the company.
+* Leaving a group removes the access within 15 minutes (`vpn:sync`): people who came in through a group lose
+  access when they're in none of the company's groups any more; anyone loses their devices on a firewall whose
+  group they left. If Microsoft can't be reached, nothing is removed.
+* People added by hand keep company access. Email-and-password accounts can use firewalls without a group only.
+* Needs the application permission `GroupMember.Read.All`. The one-click setup adds it; companies set up before
+  v0.8.3 run **Run automatic setup again** once. Apps entered by hand need it added with admin consent.
 
 ## 1b. CFBTEL's setup app for one-click setup (once, in CFBTEL's Microsoft Entra)
 
@@ -133,7 +149,8 @@ Point the name at this server, either way:
      - on OPNsense, an outbound NAT rule.
    - On pfSense, outbound NAT must be Automatic or Hybrid.
    - For a firewall already set up by hand, use **Adopt an existing tunnel** instead.
-4. **Who has VPN access → search → Give VPN access**, or invite by email.
+4. **Who has VPN access → search → Give VPN access**, invite by email, or use a Microsoft 365 group.
+   On pfSense, **Create WireGuard** installs the WireGuard package first when it's missing (1–3 minutes).
 
 ## 4. Firewall API permissions
 
@@ -142,6 +159,7 @@ Point the name at this server, either way:
     `-apply-post`
   - `api-v2-interfaces-get`, `api-v2-interface-post`, `api-v2-interface-apply-post`
   - `api-v2-firewall-aliases-get`, `-alias-post`, `-rule-post`, `-apply-post`
+  - `api-v2-system-packages-get`, `api-v2-system-package-post` (installs the WireGuard package when it's missing)
 * **OPNsense:** the API key's user needs these pages:
   - WireGuard
   - Firewall: Automation (filter and source NAT)

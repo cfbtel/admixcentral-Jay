@@ -28,7 +28,7 @@ class MicrosoftSetup
     public const GRAPH_APP_ID = '00000003-0000-0000-c000-000000000000';
     public const APP_NAME = 'CFBTEL VPN';
     public const DELEGATED = ['openid', 'profile', 'email', 'User.Read'];
-    public const APPLICATION = ['User.Read.All'];
+    public const APPLICATION = ['User.Read.All', 'GroupMember.Read.All'];
     public const SETUP_SCOPES = [
         'https://graph.microsoft.com/Application.ReadWrite.All',
         'https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All',

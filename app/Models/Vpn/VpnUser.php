@@ -14,7 +14,7 @@ class VpnUser extends Model
 {
     protected $table = 'vpn_users';
     protected $fillable = [
-        'company_id', 'auth_type', 'ms_oid', 'upn', 'name', 'added_by', 'last_login_at',
+        'company_id', 'auth_type', 'source', 'ms_oid', 'upn', 'name', 'added_by', 'last_login_at',
         'password', 'invite_token_hash', 'invite_expires_at', 'invited_at', 'password_set_at', 'failed_logins', 'locked_until',
     ];
     protected $hidden = ['password', 'invite_token_hash'];
@@ -25,6 +25,12 @@ class VpnUser extends Model
         'password_set_at' => 'datetime',
         'locked_until' => 'datetime',
     ];
+
+    /** Came in through the company's Microsoft 365 group (not added by hand). */
+    public function viaGroup(): bool
+    {
+        return $this->source === 'group';
+    }
 
     public function isLocal(): bool
     {

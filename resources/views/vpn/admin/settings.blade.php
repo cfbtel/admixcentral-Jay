@@ -38,7 +38,7 @@
                     <strong>CFBTEL's shared Microsoft app</strong> (optional — with one-click setup below, each company gets its own app instead).
                     One multi-tenant app registration in CFBTEL's Microsoft Entra ("Accounts in any organizational directory").
                     Redirect URIs (Web): <code>{{ $redirects[0] }}</code> and <code>{{ $redirects[1] }}</code>.
-                    API permissions (Microsoft Graph): delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code>, then grant admin consent.
+                    API permissions (Microsoft Graph): delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code> and <code>GroupMember.Read.All</code>, then grant admin consent.
                 </p>
                 <form method="POST" action="{{ route('vpn.settings.update') }}" class="space-y-4 max-w-xl">@csrf
                     <label class="{{ $label }}">Application (client) ID<input name="ms_client_id" value="{{ old('ms_client_id', $clientId) }}" placeholder="00000000-0000-0000-0000-000000000000" class="{{ $input }}" autocomplete="off"></label>

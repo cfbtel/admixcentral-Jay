@@ -32,7 +32,7 @@ class PortalController extends Controller
     private const PENDING = 'vpn_portal_login';
     public const PLATFORMS = ['windows' => 'Windows PC', 'macos' => 'Mac', 'iphone' => 'iPhone / iPad', 'android' => 'Android'];
 
-    public function __construct(private VpnManager $vpn, private \App\Services\Vpn\VpnAccounts $accounts)
+    public function __construct(private VpnManager $vpn, private \App\Services\Vpn\VpnAccounts $accounts, private \App\Services\Vpn\VpnAccess $access)
     {
     }
 
@@ -98,7 +98,7 @@ class PortalController extends Controller
 
     private function devicesPage(VpnUser $user, ?array $notice = null, int $status = 200)
     {
-        $sites = $this->vpn->readySites($user->company_id);
+        $sites = $this->access->sitesFor($user);
         $devices = $user->activeDevices()->with('site.firewall')->orderBy('created_at')->get();
         return response()->view('vpn.portal.devices', [
             'user' => $user,
@@ -163,6 +163,27 @@ class PortalController extends Controller
             $vc = null; // signed in to another tenant than the company's own app
         }
         $user = $vc ? VpnUser::where('company_id', $vc->company_id)->where('auth_type', 'microsoft')->where('ms_oid', $id['oid'])->first() : null;
+
+        // Microsoft 365 groups: members get access without being added by hand; people who came in
+        // through a group lose it when they leave every group the company uses.
+        if ($vc && \App\Services\Vpn\VpnAccess::usesGroups($vc) && (!$user || $user->viaGroup())) {
+            $in = $this->access->membership($vc, $id['oid'], true);
+            if ($in === null && !$user) {
+                return $this->message('Try again shortly', 'Your company\'s Microsoft 365 groups couldn\'t be checked right now. Please try again in a few minutes.', 503);
+            }
+            if ($in !== null && !\App\Services\Vpn\VpnAccess::grantsAccess($vc, $in)) {
+                if ($user) {
+                    $this->vpn->removeUser($user, 'system (left the Microsoft 365 group)');
+                    $user = null;
+                }
+            } elseif (!$user && $in !== null) {
+                $user = VpnUser::create([
+                    'company_id' => $vc->company_id, 'auth_type' => 'microsoft', 'source' => 'group', 'ms_oid' => $id['oid'],
+                    'upn' => $id['upn'], 'name' => $id['name'], 'added_by' => 'Microsoft 365 group',
+                ]);
+                VpnAuditLog::record($vc->company_id, $id['upn'], 'vpn_access_given (Microsoft 365 group)');
+            }
+        }
         if (!$user) {
             Log::notice('VPN portal: sign-in refused', ['upn' => $id['upn'], 'tid' => $id['tid']]);
             return $this->message(
@@ -260,6 +281,9 @@ class PortalController extends Controller
         }
         if (!$site || !$site->isReady()) {
             return $this->devicesPage($user, ['error', 'Pick a site.'], 422);
+        }
+        if (!$this->access->sitesFor($user, true)->contains('id', $site->id)) {
+            return $this->devicesPage($user, ['error', "You don't have access to {$site->firewall->name}. Ask your IT admin to add you to its Microsoft 365 group."], 403);
         }
         try {
             $made = $this->vpn->addDevice($user, $site, $name);

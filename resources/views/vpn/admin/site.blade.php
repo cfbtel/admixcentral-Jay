@@ -53,7 +53,10 @@
                 <div class="{{ $card }}">
                     <h3 class="text-lg font-bold mb-1">Create WireGuard automatically</h3>
                     <p class="text-sm text-gray-500 mb-4">Creates the tunnel, its firewall rules (DNS to the firewall, block the firewall's admin pages, allow the chosen LAN, block other private networks, internet), the WAN rule{{ $fw->isOpnSense() ? ' and outbound NAT' : '' }}. Full tunnel: devices browse through this office.@if($fw->isPfSense()) Outbound NAT must be Automatic or Hybrid.@endif</p>
-                    <form method="POST" action="{{ route('vpn.site.setup', [$company, $site]) }}" class="space-y-3 max-w-lg">@csrf
+                    @if(!empty($needsPackage))
+                        <p class="text-sm mb-4 p-3 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200">The WireGuard package isn't installed on this firewall yet. <strong>Create WireGuard installs it first</strong> (pfSense downloads it; this can take 1–3 minutes, keep the page open). The AdmixCentral API user needs the <code>api-v2-system-package-post</code> privilege for that.</p>
+                    @endif
+                    <form method="POST" action="{{ route('vpn.site.setup', [$company, $site]) }}" class="space-y-3 max-w-lg" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Working… (installing WireGuard can take a few minutes)'">@csrf
                         <label class="{{ $label }}">VPN users may reach<select name="lan" class="{{ $input }}">{!! $ifOpts($lanDefault) !!}</select></label>
                         <label class="{{ $label }}">Internet connection (WAN)<select name="wan" class="{{ $input }}">{!! $ifOpts('wan') !!}</select></label>
                         <label class="{{ $label }}">WireGuard port (UDP)<input name="port" value="{{ old('port', 51820) }}" inputmode="numeric" class="{{ $input }}"></label>

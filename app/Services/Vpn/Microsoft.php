@@ -262,6 +262,69 @@ class Microsoft
         return $u === null ? null : self::toUser($u);
     }
 
+    private function graphPost(string $tenantId, string $path, array $body): array
+    {
+        $res = Http::withToken($this->appToken($tenantId))->acceptJson()->timeout(20)->post(self::GRAPH . '/v1.0' . $path, $body);
+        if (!$res->successful()) {
+            $msg = (string) $res->json('error.message', "Microsoft Graph error {$res->status()}");
+            throw new VpnException($res->status() === 403 ? "Microsoft refused to read group membership ({$msg}). The app needs the GroupMember.Read.All permission: run the automatic Microsoft 365 setup again." : $msg);
+        }
+        return $res->json() ?? [];
+    }
+
+    private static function toGroup(array $g): array
+    {
+        return [
+            'id' => strtolower((string) ($g['id'] ?? '')),
+            'name' => (string) ($g['displayName'] ?? ''),
+            'description' => is_string($g['description'] ?? null) ? $g['description'] : null,
+            'security' => (bool) ($g['securityEnabled'] ?? false),
+            'm365' => in_array('Unified', $g['groupTypes'] ?? [], true),
+        ];
+    }
+
+    private const GROUP_SELECT = '$select=id,displayName,description,securityEnabled,groupTypes';
+
+    /** Groups in a company's tenant, for its admin to pick from. */
+    public function searchGroups(string $tenantId, string $query): array
+    {
+        $q = trim(str_replace(['"', '\\'], '', $query));
+        $path = $q !== ''
+            ? '/groups?$search=' . rawurlencode("\"displayName:{$q}\"") . '&' . self::GROUP_SELECT . '&$top=25&$orderby=displayName&$count=true'
+            : '/groups?' . self::GROUP_SELECT . '&$top=25&$orderby=displayName&$count=true';
+        try {
+            $res = $this->graph($tenantId, $path, ['ConsistencyLevel' => 'eventual']);
+        } catch (VpnException $e) {
+            throw str_contains($e->getMessage(), 'Insufficient privileges') || str_contains($e->getMessage(), 'Authorization_RequestDenied')
+                ? new VpnException('The company\'s Microsoft app can\'t read groups yet (GroupMember.Read.All). Run the automatic Microsoft 365 setup again.')
+                : $e;
+        }
+        return array_map([self::class, 'toGroup'], $res['value'] ?? []);
+    }
+
+    public function group(string $tenantId, string $groupId): ?array
+    {
+        $g = $this->graph($tenantId, '/groups/' . rawurlencode($groupId) . '?' . self::GROUP_SELECT);
+        return $g === null ? null : self::toGroup($g);
+    }
+
+    /**
+     * Which of these groups the person is in, including through nested groups.
+     * @param string[] $groupIds @return string[] lower-case ids
+     */
+    public function memberOf(string $tenantId, string $oid, array $groupIds): array
+    {
+        $groupIds = array_values(array_unique(array_filter($groupIds)));
+        if (!$groupIds) {
+            return [];
+        }
+        $in = [];
+        foreach (array_chunk($groupIds, 20) as $chunk) { // checkMemberGroups takes at most 20 ids
+            $in = array_merge($in, $this->graphPost($tenantId, '/users/' . rawurlencode($oid) . '/checkMemberGroups', ['groupIds' => $chunk])['value'] ?? []);
+        }
+        return array_map('strtolower', $in);
+    }
+
     public function tenantName(string $tenantId): ?string
     {
         try {

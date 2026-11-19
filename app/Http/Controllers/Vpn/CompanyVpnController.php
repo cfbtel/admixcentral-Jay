@@ -74,6 +74,16 @@ class CompanyVpnController extends Controller
                 $consentError = 'CFBTEL\'s shared Microsoft app isn\'t set up. Use this company\'s own Microsoft app below, or set up the shared app in VPN settings.';
             }
         }
+        $gq = trim((string) $request->query('gq', ''));
+        $groupResults = null;
+        $groupError = null;
+        if ($vc->ms_tenant_id && ($gq !== '' || $request->has('groups')) && $this->canManage($request, $company)) {
+            try {
+                $groupResults = collect($this->microsoft($vc)->searchGroups($vc->ms_tenant_id, $gq));
+            } catch (\Throwable $e) {
+                $groupError = $e instanceof VpnException ? $e->getMessage() : 'Couldn\'t search Microsoft 365 groups.';
+            }
+        }
         $setupReady = \App\Services\Vpn\MicrosoftSetup::make()->configured();
         $setupLink = $setupReady && $this->canManage($request, $company) ? MicrosoftSetupController::link($company, $this->actor($request)) : null;
         $sites = VpnSite::with('firewall')->where('company_id', $company->id)->get()->keyBy('firewall_id');
@@ -92,6 +102,9 @@ class CompanyVpnController extends Controller
             'consentUrl' => $consentUrl,
             'consentError' => $consentError,
             'setupReady' => $setupReady,
+            'gq' => $gq,
+            'groupResults' => $groupResults,
+            'groupError' => $groupError,
             'setupLink' => $setupLink,
             'canManage' => $this->canManage($request, $company),
             'portalUrl' => VpnSettings::portalUrl('/vpn'),
@@ -207,6 +220,51 @@ class CompanyVpnController extends Controller
         return back()->with('success', 'Saved.');
     }
 
+    /** Use a Microsoft 365 group for the whole company ("company") or for one firewall (a VPN site id). */
+    public function assignGroup(Request $request, Company $company)
+    {
+        $this->authorizeManage($request, $company);
+        $vc = VpnCompany::forCompany($company);
+        $v = $request->validate(['group_id' => ['required', 'string', 'max:36'], 'target' => ['required', 'string', 'max:20']]);
+        if (!$vc->ms_tenant_id || !Microsoft::isGuid($v['group_id'])) {
+            return back()->with('error', 'Connect Microsoft 365 first, then pick a group.');
+        }
+        try {
+            $g = $this->microsoft($vc)->group($vc->ms_tenant_id, strtolower($v['group_id']));
+        } catch (\Throwable $e) {
+            return back()->with('error', $e instanceof VpnException ? $e->getMessage() : 'Couldn\'t read the group from Microsoft 365.');
+        }
+        if (!$g) {
+            return back()->with('error', 'That group wasn\'t found in this company\'s Microsoft 365.');
+        }
+        if ($v['target'] === 'company') {
+            $vc->update(['access_group_id' => $g['id'], 'access_group_name' => $g['name']]);
+            $where = 'the whole company';
+        } else {
+            $site = VpnSite::with('firewall')->where('company_id', $company->id)->findOrFail((int) $v['target']);
+            $site->update(['access_group_id' => $g['id'], 'access_group_name' => $g['name']]);
+            $where = $site->firewall->name;
+        }
+        VpnAuditLog::record($company->id, $this->actor($request), "group_set {$g['name']} for {$where}");
+        return redirect()->route('vpn.company', $company)->with('success', "Microsoft 365 group “{$g['name']}” now controls VPN access for {$where}.");
+    }
+
+    public function clearGroup(Request $request, Company $company)
+    {
+        $this->authorizeManage($request, $company);
+        $target = (string) $request->input('target');
+        if ($target === 'company') {
+            VpnCompany::forCompany($company)->update(['access_group_id' => null, 'access_group_name' => null]);
+            $where = 'the whole company';
+        } else {
+            $site = VpnSite::with('firewall')->where('company_id', $company->id)->findOrFail((int) $target);
+            $site->update(['access_group_id' => null, 'access_group_name' => null]);
+            $where = $site->firewall->name;
+        }
+        VpnAuditLog::record($company->id, $this->actor($request), "group_cleared for {$where}");
+        return redirect()->route('vpn.company', $company)->with('success', "No Microsoft 365 group for {$where} any more. People who came in through it lose access at the next sync unless another group still includes them.");
+    }
+
     public function removeOwnApp(Request $request, Company $company)
     {
         $this->authorizeManage($request, $company);
@@ -317,6 +375,7 @@ class CompanyVpnController extends Controller
                 $driver = $this->vpn->driver($site);
                 $data['interfaces'] = $driver->interfaces();
                 $data['tunnels'] = $driver->tunnels();
+                $data['needsPackage'] = $driver instanceof \App\Services\Vpn\PfSenseWireGuardDriver && !$driver->packageInstalled();
                 $used = collect($data['interfaces'])->map(fn ($i) => implode('.', array_slice(explode('.', (string) $i['ipaddr']), 0, 3)))->flip();
                 for ($k = 70; $k < 100; $k++) {
                     if (!isset($used["10.0.{$k}"])) {
@@ -346,6 +405,9 @@ class CompanyVpnController extends Controller
             'subnet' => ['required', 'string', 'max:20'],
             'endpoint_host' => ['required', 'regex:/^[A-Za-z0-9.-]{1,120}$/'],
         ]);
+        // Installing pfSense's WireGuard package can take a few minutes: finish even if the browser gives up.
+        @set_time_limit(600);
+        ignore_user_abort(true);
         try {
             WireGuard::parseSubnet($v['subnet']);
             $driver = $this->vpn->driver($site);

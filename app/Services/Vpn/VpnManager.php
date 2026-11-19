@@ -189,6 +189,42 @@ class VpnManager
             }
         }
 
+        // Microsoft 365 groups: people who came in through a group and left all of the company's groups lose
+        // access; anyone who left a firewall's group loses their devices on that firewall.
+        if ($tenant && !$skipped && $vc && VpnAccess::usesGroups($vc)) {
+            $ids = VpnAccess::groupIds($vc);
+            $siteGroups = VpnSite::where('company_id', $company->id)->whereNotNull('access_group_id')->get()
+                ->mapWithKeys(fn ($s) => [$s->id => ['group' => strtolower($s->access_group_id), 'name' => $s->access_group_name]]);
+            $people = VpnUser::where('company_id', $company->id)->where('auth_type', 'microsoft')->whereNotNull('ms_oid')->get();
+            $member = [];
+            try {
+                foreach ($people as $u) {
+                    $member[$u->id] = $ms->memberOf($tenant, $u->ms_oid, $ids);
+                }
+            } catch (\Throwable $e) {
+                $member = null;
+                $skipped = true;
+                Log::warning('VPN sync: Microsoft groups unavailable; group check skipped', ['company' => $company->id, 'error' => $e->getMessage()]);
+            }
+            foreach ($member === null ? [] : $people as $u) {
+                $in = $member[$u->id];
+                if ($u->viaGroup() && !array_intersect($ids, $in)) {
+                    VpnDevice::where('vpn_user_id', $u->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+                    VpnAuditLog::record($company->id, 'system', "vpn_access_removed {$u->upn} (no longer in the Microsoft 365 group)");
+                    $u->delete();
+                    continue;
+                }
+                foreach ($siteGroups as $siteId => $g) {
+                    if (!in_array($g['group'], $in, true)) {
+                        $n = VpnDevice::where('vpn_user_id', $u->id)->where('vpn_site_id', $siteId)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+                        if ($n) {
+                            VpnAuditLog::record($company->id, 'system', "devices_revoked {$u->upn} ({$n}, not in group {$g['name']})");
+                        }
+                    }
+                }
+            }
+        }
+
         $removed = 0;
         foreach ($this->readySites($company->id) as $site) {
             try {

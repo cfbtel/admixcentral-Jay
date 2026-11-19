@@ -879,6 +879,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'show'])->name('vpn.company');
         Route::post('/microsoft', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveMicrosoft'])->middleware('deny.readonly')->name('vpn.microsoft.save');
         Route::post('/microsoft/own-app/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeOwnApp'])->middleware('deny.readonly')->name('vpn.microsoft.remove');
+        Route::post('/groups/assign', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'assignGroup'])->middleware('deny.readonly')->name('vpn.groups.assign');
+        Route::post('/groups/clear', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'clearGroup'])->middleware('deny.readonly')->name('vpn.groups.clear');
         Route::post('/users', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'addUser'])->middleware('deny.readonly')->name('vpn.users.store');
         Route::post('/users/invite', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'inviteUser'])->middleware(['deny.readonly', 'throttle:30,1'])->name('vpn.users.invite');
         Route::post('/users/{vpnUser}/update', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'updateUser'])->middleware('deny.readonly')->name('vpn.users.update');

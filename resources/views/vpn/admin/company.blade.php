@@ -75,7 +75,7 @@
                                 <ol class="text-xs text-gray-600 dark:text-gray-300 list-decimal ml-5 space-y-1">
                                     <li>In <strong>the company's</strong> Entra admin center: App registrations → New registration → name <em>CFBTEL VPN</em>, <em>Accounts in this organizational directory only</em>.</li>
                                     <li>Redirect URI (Web): <code>{{ $callbackUrl }}</code></li>
-                                    <li>API permissions → Microsoft Graph: delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code> → <strong>Grant admin consent</strong>.</li>
+                                    <li>API permissions → Microsoft Graph: delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code> and <code>GroupMember.Read.All</code> → <strong>Grant admin consent</strong>.</li>
                                     <li>Certificates &amp; secrets → New client secret; copy its <em>Value</em>. Note its expiry and enter a new one here before it ends.</li>
                                 </ol>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Directory (tenant) ID
@@ -102,7 +102,7 @@
                 <h3 class="text-lg font-bold mb-3">2. Firewalls</h3>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead><tr><th class="{{ $th }}">Firewall</th><th class="{{ $th }}">Type</th><th class="{{ $th }}">VPN</th><th class="{{ $th }}">Endpoint</th><th class="{{ $th }}">VPN network</th><th class="{{ $th }}"></th></tr></thead>
+                        <thead><tr><th class="{{ $th }}">Firewall</th><th class="{{ $th }}">Type</th><th class="{{ $th }}">VPN</th><th class="{{ $th }}">Endpoint</th><th class="{{ $th }}">VPN network</th><th class="{{ $th }}">Who can use it</th><th class="{{ $th }}"></th></tr></thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                         @forelse($firewalls as $fw)
                             @php $s = $sites[$fw->id] ?? null; @endphp
@@ -116,6 +116,7 @@
                                 </td>
                                 <td class="{{ $td }}">{{ $s?->endpoint ?? '—' }}</td>
                                 <td class="{{ $td }}">{{ $s?->subnet ?? '—' }}</td>
+                                <td class="{{ $td }} text-xs">@if(!$s) — @elseif($s->access_group_id) members of <strong>{{ $s->access_group_name }}</strong> @else everyone with VPN access @endif</td>
                                 <td class="{{ $td }} text-right">
                                     @if($s)
                                         <a href="{{ route('vpn.site', [$company, $s]) }}" class="{{ $btn2 }}">{{ $s->isReady() ? 'Settings' : 'Set up' }}</a>
@@ -125,7 +126,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="{{ $td }} text-gray-500">This company has no firewalls in AdmixCentral yet.</td></tr>
+                            <tr><td colspan="7" class="{{ $td }} text-gray-500">This company has no firewalls in AdmixCentral yet.</td></tr>
                         @endforelse
                         </tbody>
                     </table>
@@ -135,6 +136,56 @@
             {{-- 3. People --}}
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-3">3. Who has VPN access</h3>
+
+                {{-- Microsoft 365 groups --}}
+                <div class="mb-6 p-4 rounded border border-gray-200 dark:border-gray-700 max-w-3xl">
+                    <p class="text-sm font-semibold">Microsoft 365 groups <span class="font-normal text-gray-500">(optional)</span></p>
+                    <ul class="text-sm mt-2 space-y-1">
+                        <li class="flex items-center justify-between gap-3">
+                            <span>Whole company: @if($vc->access_group_id) members of <strong>{{ $vc->access_group_name }}</strong> get VPN access automatically @else <span class="text-gray-500">no group — only the people listed below</span> @endif</span>
+                            @if($canManage && $vc->access_group_id)
+                                <form method="POST" action="{{ route('vpn.groups.clear', $company) }}" onsubmit="return confirm('Stop using this group? People who came in through it lose access at the next sync.')">@csrf<input type="hidden" name="target" value="company"><button class="{{ $btnRed }}">Remove</button></form>
+                            @endif
+                        </li>
+                        @foreach($sites->filter(fn ($s) => $s->access_group_id) as $gs)
+                            <li class="flex items-center justify-between gap-3">
+                                <span>{{ $gs->firewall->name }}: only members of <strong>{{ $gs->access_group_name }}</strong></span>
+                                @if($canManage)
+                                    <form method="POST" action="{{ route('vpn.groups.clear', $company) }}">@csrf<input type="hidden" name="target" value="{{ $gs->id }}"><button class="{{ $btnRed }}">Remove</button></form>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="text-xs text-gray-500 mt-2">A company group gives its members VPN access without adding them one by one (nested groups count). A firewall's group limits that firewall to its members, who also get VPN access for it. Firewalls without a group are open to everyone with VPN access. Leaving a group removes the access within 15 minutes. People added by hand below keep access; email-and-password accounts can use firewalls without a group only.</p>
+                    @if($canManage && $vc->ms_tenant_id)
+                        <form method="GET" action="{{ route('vpn.company', $company) }}" class="flex gap-2 mt-3">
+                            <input name="gq" value="{{ $gq }}" placeholder="Search this company's Microsoft 365 groups, e.g. VPN" class="flex-1 {{ $input }}">
+                            <button class="{{ $btn2 }}" name="groups" value="1">Search groups</button>
+                        </form>
+                        @if($groupError)<p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $groupError }}</p>@endif
+                        @if($groupResults !== null)
+                            <ul class="mt-3 divide-y divide-gray-200 dark:divide-gray-700">
+                                @forelse($groupResults as $g)
+                                    <li class="py-2 flex items-center justify-between gap-3">
+                                        <div><div class="text-sm font-medium">{{ $g['name'] }}</div><div class="text-xs text-gray-500">{{ $g['m365'] ? 'Microsoft 365 group' : ($g['security'] ? 'Security group' : 'Group') }}@if($g['description']) · {{ \Illuminate\Support\Str::limit($g['description'], 60) }}@endif</div></div>
+                                        <form method="POST" action="{{ route('vpn.groups.assign', $company) }}" class="flex gap-2">@csrf
+                                            <input type="hidden" name="group_id" value="{{ $g['id'] }}">
+                                            <select name="target" class="{{ $input }} text-sm">
+                                                <option value="company">Whole company</option>
+                                                @foreach($sites->filter(fn ($s) => $s->isReady()) as $rs)<option value="{{ $rs->id }}">Only for {{ $rs->firewall->name }}</option>@endforeach
+                                            </select>
+                                            <button class="{{ $btn2 }}">Use</button>
+                                        </form>
+                                    </li>
+                                @empty
+                                    <li class="py-2 text-sm text-gray-500">No matching groups{{ $gq !== '' ? " for “{$gq}”" : '' }}.</li>
+                                @endforelse
+                            </ul>
+                        @endif
+                    @elseif($canManage)
+                        <p class="text-xs text-gray-500 mt-2">Connect Microsoft 365 first to use groups.</p>
+                    @endif
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead><tr><th class="{{ $th }}">Person</th><th class="{{ $th }}">Signs in with</th><th class="{{ $th }}">Devices</th><th class="{{ $th }}">Last sign-in</th><th class="{{ $th }}">Added by</th><th class="{{ $th }}"></th></tr></thead>
@@ -148,7 +199,7 @@
                                         @php $st = $u->status(); @endphp
                                         <span class="text-xs {{ $st === 'active' ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400' }}">· {{ $st === 'invited' ? 'invited, password not set' : $st }}</span>
                                     @else
-                                        Microsoft 365
+                                        Microsoft 365 @if($u->viaGroup()) <span class="text-xs text-indigo-600 dark:text-indigo-400">· through group</span>@endif
                                     @endif
                                 </td>
                                 <td class="{{ $td }}">{{ $u->active_devices_count }}</td>

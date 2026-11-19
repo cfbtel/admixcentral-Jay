@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.8.3
+- Microsoft 365 groups for VPN access: a company group (e.g. "VPN") gives its members access without adding them
+  one by one, and a group per firewall limits that firewall to its members. Leaving a group removes the access at
+  the next sync (15 minutes). Needs GroupMember.Read.All, which the one-click setup now grants (run it again for
+  companies already set up).
+- pfSense: "Create WireGuard" installs the WireGuard package (pfSense-pkg-WireGuard) first when it's missing.
+
 ### Fixed — v0.8.3
 - VPN "Create WireGuard" checks the firewall's existing tunnels first: a UDP port already in use now stops with a
   clear message (adopt that tunnel or pick another port) before anything on the firewall is changed.

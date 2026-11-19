@@ -139,6 +139,30 @@ class FakeMicrosoft extends Microsoft
     {
         return 'Acme Inc';
     }
+
+    /** @var array<string, array{name: string, members: string[]}> group id => name and member oids */
+    public array $groups = [];
+
+    public function searchGroups(string $tenantId, string $query): array
+    {
+        return collect($this->groups)->filter(fn ($g) => str_contains(strtolower($g['name']), strtolower($query)))
+            ->map(fn ($g, $id) => ['id' => $id, 'name' => $g['name'], 'description' => null, 'security' => true, 'm365' => false])->values()->all();
+    }
+
+    public function group(string $tenantId, string $groupId): ?array
+    {
+        $g = $this->groups[$groupId] ?? null;
+        return $g ? ['id' => $groupId, 'name' => $g['name'], 'description' => null, 'security' => true, 'm365' => false] : null;
+    }
+
+    public function memberOf(string $tenantId, string $oid, array $groupIds): array
+    {
+        if ($this->down) {
+            throw new VpnException('graph down');
+        }
+        $this->calls[] = "memberOf {$oid}";
+        return array_values(array_filter($groupIds, fn ($id) => in_array($oid, $this->groups[$id]['members'] ?? [], true)));
+    }
 }
 
 /** One-click setup without the network. */
@@ -739,7 +763,7 @@ class VpnModuleTest extends TestCase
             return match (true) {
                 $m === 'GET' && str_contains($u, "servicePrincipals(appId='00000003-0000-0000-c000-000000000000')") => Http::response(['id' => $graph,
                     'oauth2PermissionScopes' => collect(['openid' => 's1', 'profile' => 's2', 'email' => 's3', 'User.Read' => 's4', 'Mail.Read' => 's9'])->map(fn ($id, $v) => ['id' => $id, 'value' => $v])->values()->all(),
-                    'appRoles' => [['id' => 'r1', 'value' => 'User.Read.All', 'allowedMemberTypes' => ['Application']], ['id' => 'r9', 'value' => 'Mail.Read', 'allowedMemberTypes' => ['Application']]]]),
+                    'appRoles' => [['id' => 'r1', 'value' => 'User.Read.All', 'allowedMemberTypes' => ['Application']], ['id' => 'r2', 'value' => 'GroupMember.Read.All', 'allowedMemberTypes' => ['Application']], ['id' => 'r9', 'value' => 'Mail.Read', 'allowedMemberTypes' => ['Application']]]]),
                 $m === 'POST' && str_ends_with($u, '/v1.0/applications') => Http::response(['id' => 'obj-1', 'appId' => 'app-1'], 201),
                 $m === 'POST' && str_ends_with($u, '/applications/obj-1/addPassword') => ++$addPasswordTries < 2
                     ? Http::response(['error' => ['code' => 'Request_ResourceNotFound', 'message' => 'Resource does not exist']], 404)
@@ -763,11 +787,11 @@ class VpnModuleTest extends TestCase
         $this->assertSame('AzureADMyOrg', $create['signInAudience']);
         $this->assertSame(['https://vpn.test/vpn/callback'], $create['web']['redirectUris']);
         $this->assertEqualsCanonicalizing(
-            [['id' => 's1', 'type' => 'Scope'], ['id' => 's2', 'type' => 'Scope'], ['id' => 's3', 'type' => 'Scope'], ['id' => 's4', 'type' => 'Scope'], ['id' => 'r1', 'type' => 'Role']],
+            [['id' => 's1', 'type' => 'Scope'], ['id' => 's2', 'type' => 'Scope'], ['id' => 's3', 'type' => 'Scope'], ['id' => 's4', 'type' => 'Scope'], ['id' => 'r1', 'type' => 'Role'], ['id' => 'r2', 'type' => 'Role']],
             $create['requiredResourceAccess'][0]['resourceAccess']
         );
-        $role = $sent->first(fn ($r) => str_contains($r->url(), 'appRoleAssignedTo'));
-        $this->assertSame(['principalId' => 'sp-1', 'resourceId' => $graph, 'appRoleId' => 'r1'], $role->data());
+        $roles = $sent->filter(fn ($r) => str_contains($r->url(), 'appRoleAssignedTo'))->map(fn ($r) => $r->data())->values()->all();
+        $this->assertSame([['principalId' => 'sp-1', 'resourceId' => $graph, 'appRoleId' => 'r1'], ['principalId' => 'sp-1', 'resourceId' => $graph, 'appRoleId' => 'r2']], $roles);
         $grant = $sent->first(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/oauth2PermissionGrants'));
         $this->assertSame(['clientId' => 'sp-1', 'consentType' => 'AllPrincipals', 'resourceId' => $graph, 'scope' => 'openid profile email User.Read'], $grant->data());
         $this->assertTrue($sent->every(fn ($r) => $r->header('Authorization')[0] === 'Bearer delegated'));
@@ -796,6 +820,110 @@ class VpnModuleTest extends TestCase
             ->assertRedirect()->assertSessionHas('error', fn ($m) => str_contains($m, 'tun_wg0 (Office)') && str_contains($m, 'Adopt'));
         $this->assertSame([], $this->fw->setups);
         $this->assertNotSame('error', $site->fresh()->status);
+    }
+
+    private const G_VPN = '99999999-0000-0000-0000-00000000000a';
+    private const G_SITE2 = '99999999-0000-0000-0000-00000000000b';
+
+    /** Acme onboarded, plus a second ready firewall ("Acme Branch"). */
+    private function twoSites(array $w): array
+    {
+        $site1 = $this->onboard($w);
+        $fw2 = Firewall::create(['name' => 'Acme Branch', 'company_id' => $w['acme']->id, 'url' => 'https://fw2.acme.test', 'os_type' => 'pfsense', 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => 'acme-br']);
+        $site2 = VpnSite::create(['company_id' => $w['acme']->id, 'firewall_id' => $fw2->id, 'status' => 'ready', 'tunnel' => 'tun_wg1', 'tunnel_name' => 'CFBTEL VPN',
+            'server_public_key' => WireGuard::keyPair()['public'], 'subnet' => '10.0.71.0/24', 'endpoint' => 'branch.acme.com:51820', 'dns' => '10.0.71.1']);
+        return [$site1, $site2];
+    }
+
+    public function test_a_company_group_gives_its_members_vpn_access(): void
+    {
+        $w = $this->world();
+        $site = $this->onboard($w);
+        $this->ms->groups = [self::G_VPN => ['name' => 'VPN', 'members' => [$this->ms->people['carl']['oid']]]];
+
+        // The admin finds the group and uses it for the whole company.
+        $page = $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn?gq=vp&groups=1")->assertOk()->assertSee('VPN')->assertSee('Whole company');
+        $this->console($w['acmeReader'])->post("/companies/{$w['acme']->id}/vpn/groups/assign", ['group_id' => self::G_VPN, 'target' => 'company'])->assertForbidden();
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/groups/assign", ['group_id' => self::G_VPN, 'target' => 'company'])->assertSessionHas('success');
+        $this->assertSame('VPN', VpnCompany::where('company_id', $w['acme']->id)->value('access_group_name'));
+
+        // Carl isn't on the list but is in the group: he gets in and is added automatically.
+        $this->staffSignIn('carl')->assertRedirect('https://vpn.test/vpn');
+        $carl = VpnUser::where('ms_oid', $this->ms->people['carl']['oid'])->firstOrFail();
+        $this->assertTrue($carl->viaGroup());
+        $this->addDevice('Carl laptop')->assertOk();
+        // Bob is in no group and not on the list.
+        $this->staffSignIn('bob')->assertForbidden();
+
+        // Carl leaves the group: the sync removes his access and his device.
+        $this->ms->groups[self::G_VPN]['members'] = [];
+        $this->artisan('vpn:sync')->assertSuccessful();
+        $this->assertNull(VpnUser::find($carl->id));
+        $this->assertSame([], $this->fw->peers);
+        // …and signing in again is refused.
+        $this->staffSignIn('carl')->assertForbidden();
+    }
+
+    public function test_a_firewall_group_limits_that_firewall_to_its_members(): void
+    {
+        $w = $this->world();
+        [$site1, $site2] = $this->twoSites($w);
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $this->grant($w['global'], $w['acme'], 'bob');
+        $this->ms->groups = [self::G_SITE2 => ['name' => 'Branch VPN', 'members' => [$this->ms->people['ann']['oid'], $this->ms->people['carl']['oid']]]];
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/groups/assign", ['group_id' => self::G_SITE2, 'target' => (string) $site2->id])->assertSessionHas('success');
+        $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertSee('members of <strong>Branch VPN</strong>', false);
+
+        // Bob (not in the group) only sees the main firewall and can't add a device on the branch.
+        $this->staffSignIn('bob')->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertDontSee('Acme Branch');
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site2->id, 'name' => 'Bob phone', 'platform' => 'iphone'])->assertForbidden();
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Bob phone', 'platform' => 'iphone'])->assertOk();
+
+        // Ann (in the group) can use both.
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch');
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site2->id, 'name' => 'Ann laptop', 'platform' => 'windows'])->assertOk();
+
+        // Carl isn't on the list but the branch group gives him access to the branch only.
+        $this->staffSignIn('carl')->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch');
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Carl phone', 'platform' => 'iphone'])->assertOk(); // main has no group: open to everyone with access
+
+        // Microsoft down: the sync removes nothing.
+        $this->ms->down = true;
+        $this->ms->groups[self::G_SITE2]['members'] = [];
+        $this->artisan('vpn:sync')->assertSuccessful();
+        $this->assertSame(1, VpnDevice::where('vpn_site_id', $site2->id)->whereNull('revoked_at')->count());
+
+        // Ann leaves the group: her branch device goes, she keeps access (added by hand); Carl loses access.
+        $this->ms->down = false;
+        $this->artisan('vpn:sync')->assertSuccessful();
+        $this->assertSame(0, VpnDevice::where('vpn_site_id', $site2->id)->whereNull('revoked_at')->count());
+        $this->assertNotNull(VpnUser::where('upn', 'ann@acme.com')->first());
+        $this->assertNull(VpnUser::where('upn', 'carl@acme.com')->first());
+        $this->assertSame(['tun_wg0'], array_values(array_unique(array_column($this->fw->peers, 'tunnel'))));
+
+        // Removing the group opens the branch to everyone with access again.
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/groups/clear", ['target' => (string) $site2->id])->assertSessionHas('success');
+        $this->assertNull($site2->fresh()->access_group_id);
+    }
+
+    public function test_pfsense_driver_installs_the_wireguard_package_when_missing(): void
+    {
+        $fw = Firewall::create(['name' => 'Acme HQ', 'company_id' => Company::create(['name' => 'Acme'])->id, 'url' => 'https://fw.acme.test', 'os_type' => 'pfsense', 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => 'x1']);
+        $missing = ['code' => 424, 'status' => 'failed dependency', 'message' => "The requested action requires the 'pfSense-pkg-WireGuard' package but it is not installed."];
+        Http::fake([
+            'https://fw.acme.test/api/v2/vpn/wireguard/settings*' => Http::sequence()->push($missing, 424)->push(['data' => ['enable' => false]]),
+            'https://fw.acme.test/api/v2/vpn/wireguard/tunnels*' => Http::response($missing, 424),
+            'https://fw.acme.test/api/v2/system/package' => Http::response(['data' => ['name' => 'pfSense-pkg-WireGuard']]),
+        ]);
+        $driver = new PfSenseWireGuardDriver(new PfSenseApiService($fw));
+        $this->assertSame([], $driver->tunnels());
+        $this->assertTrue($driver->ensurePackage());
+        $install = collect(Http::recorded())->map(fn ($r) => $r[0])->first(fn ($r) => $r->method() === 'POST');
+        $this->assertSame('https://fw.acme.test/api/v2/system/package', $install->url());
+        $this->assertSame(['name' => 'pfSense-pkg-WireGuard'], $install->data());
     }
 
     public function test_wireguard_helpers(): void

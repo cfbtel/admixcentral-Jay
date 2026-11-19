@@ -12,7 +12,7 @@ class VpnSite extends Model
     protected $table = 'vpn_sites';
     protected $fillable = [
         'company_id', 'firewall_id', 'status', 'tunnel', 'tunnel_name', 'server_public_key',
-        'subnet', 'endpoint', 'dns', 'allowed_ips', 'last_error',
+        'subnet', 'endpoint', 'dns', 'allowed_ips', 'last_error', 'access_group_id', 'access_group_name',
     ];
 
     public function company()

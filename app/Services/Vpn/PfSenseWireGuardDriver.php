@@ -10,12 +10,16 @@ use App\Services\PfSenseApiService;
  * API user privileges needed (in addition to what AdmixCentral already uses):
  *   api-v2-vpn-wireguard-settings-patch, -tunnels-get, -tunnel-post, -peers-get, -peer-post, -peer-delete, -apply-post,
  *   api-v2-interfaces-get, api-v2-interface-post, api-v2-interface-apply-post,
- *   api-v2-firewall-aliases-get, -alias-post, -rule-post, -apply-post.
+ *   api-v2-firewall-aliases-get, -alias-post, -rule-post, -apply-post,
+ *   api-v2-system-packages-get, api-v2-system-package-post (to install the WireGuard package when it's missing).
  */
 class PfSenseWireGuardDriver implements WireGuardDriver
 {
     private const DESCR = 'CFBTEL VPN';
     private const ALIAS = 'CFBVPN_Private_Nets';
+    public const PACKAGE = 'pfSense-pkg-WireGuard';
+    /** Installing a package downloads it on the firewall: allow a few minutes. */
+    public const INSTALL_TIMEOUT = 300;
 
     public function __construct(private PfSenseApiService $api)
     {
@@ -36,14 +40,64 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         ], $this->data($this->api->get('/interfaces', ['limit' => 0])));
     }
 
+    /** pfrest answers 424 "requires the 'pfSense-pkg-WireGuard' package but it is not installed". */
+    private static function isMissingPackage(\Throwable $e): bool
+    {
+        return str_contains($e->getMessage(), self::PACKAGE) && str_contains($e->getMessage(), 'not installed');
+    }
+
+    public function packageInstalled(): bool
+    {
+        try {
+            $this->api->get('/vpn/wireguard/settings');
+            return true;
+        } catch (\Throwable $e) {
+            if (self::isMissingPackage($e)) {
+                return false;
+            }
+            throw $e;
+        }
+    }
+
+    /** Install pfSense's WireGuard package when it's missing (System → Package Manager → WireGuard). @return bool installed now */
+    public function ensurePackage(): bool
+    {
+        if ($this->packageInstalled()) {
+            return false;
+        }
+        try {
+            $this->api->setApiTimeout(self::INSTALL_TIMEOUT);
+            $this->api->post('/system/package', ['name' => self::PACKAGE]);
+        } catch (\Throwable $e) {
+            $why = $e->getCode() === 403
+                ? 'the AdmixCentral API user needs the "api-v2-system-package-post" privilege'
+                : $e->getMessage();
+            throw new VpnException("Couldn't install the WireGuard package on this firewall ({$why}). Install it in pfSense under System → Package Manager → Available Packages → WireGuard, then try again.");
+        } finally {
+            $this->api->setApiTimeout(20);
+        }
+        if (!$this->packageInstalled()) {
+            throw new VpnException('The WireGuard package was installed but pfSense doesn\'t answer for it yet. Wait a minute and try again.');
+        }
+        return true;
+    }
+
     public function tunnels(): array
     {
+        try {
+            $rows = $this->data($this->api->get('/vpn/wireguard/tunnels', ['limit' => 0]));
+        } catch (\Throwable $e) {
+            if (self::isMissingPackage($e)) {
+                return []; // no WireGuard package yet: no tunnels (setup installs it)
+            }
+            throw $e;
+        }
         return array_map(fn ($t) => [
             'ref' => (string) ($t['name'] ?? ''),
             'name' => (string) ($t['descr'] ?? $t['name'] ?? ''),
             'listen_port' => (int) ($t['listenport'] ?? 0),
             'public_key' => (string) ($t['publickey'] ?? ''),
-        ], $this->data($this->api->get('/vpn/wireguard/tunnels', ['limit' => 0])));
+        ], $rows);
     }
 
     public function setup(array $input): array
@@ -52,6 +106,9 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         $bits = (int) explode('/', $input['subnet'])[1];
         $gateway = WireGuard::firstHost($input['subnet']);
 
+        if ($this->ensurePackage()) {
+            $log[] = 'WireGuard package installed';
+        }
         $this->api->patch('/vpn/wireguard/settings', ['enable' => true, 'keep_conf' => true]);
         $log[] = 'WireGuard enabled';
 
