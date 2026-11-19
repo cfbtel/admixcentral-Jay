@@ -55,11 +55,16 @@ class VpnManager
 
     /**
      * Create a key pair and a peer; return the client configuration (shown once, never stored).
+     * With $publicKey (the CFBTEL VPN app made its own key pair), the private key never leaves that computer:
+     * config is then null and 'peer' holds what the app needs.
      *
-     * @return array{device: VpnDevice, config: string}
+     * @return array{device: VpnDevice, config: ?string, peer: array{address: string, preshared_key: string}}
      */
-    public function addDevice(VpnUser $user, VpnSite $site, string $name): array
+    public function addDevice(VpnUser $user, VpnSite $site, string $name, ?string $publicKey = null): array
     {
+        if ($publicKey !== null && (!WireGuard::isKey($publicKey) || VpnDevice::where('public_key', $publicKey)->exists())) {
+            throw new VpnException('This computer\'s key is invalid or already in use. Start the sign-in again from the app.');
+        }
         if ($user->activeDevices()->count() >= VpnSettings::maxDevices()) {
             throw new VpnException('You already have ' . VpnSettings::maxDevices() . ' devices. Remove one first.');
         }
@@ -67,7 +72,7 @@ class VpnManager
             throw new VpnException("You already have a device called \"{$name}\" there.");
         }
 
-        return $this->locked($site, function () use ($user, $site, $name) {
+        return $this->locked($site, function () use ($user, $site, $name, $publicKey) {
             $driver = $this->driver($site);
             $onFirewall = collect($driver->peers($site->tunnel))->pluck('addresses')->flatten()->all();
             $inDb = VpnDevice::where('vpn_site_id', $site->id)->pluck('address')->all();
@@ -75,7 +80,7 @@ class VpnManager
             if (!$address) {
                 throw new VpnException('No VPN addresses are left at that site. Contact your IT admin.');
             }
-            $keys = WireGuard::keyPair();
+            $keys = $publicKey !== null ? ['public' => $publicKey, 'private' => null] : WireGuard::keyPair();
             $psk = WireGuard::presharedKey();
             $device = VpnDevice::create(['vpn_user_id' => $user->id, 'vpn_site_id' => $site->id, 'name' => $name, 'public_key' => $keys['public'], 'address' => $address]);
             try {
@@ -92,13 +97,13 @@ class VpnManager
                 throw new VpnException('The office firewall didn\'t accept the new device. Try again shortly.', 0, $e);
             }
             VpnAuditLog::record($site->company_id, $user->upn, "device_added {$name} @ {$site->firewall->name} ({$address})");
-            $config = WireGuard::clientConfig($site->only(['dns', 'server_public_key', 'allowed_ips', 'endpoint']), [
+            $config = $keys['private'] === null ? null : WireGuard::clientConfig($site->only(['dns', 'server_public_key', 'allowed_ips', 'endpoint']), [
                 'label' => preg_replace('/[^\x20-\x7E]/', '?', "{$site->firewall->name} - {$name}"),
                 'private_key' => $keys['private'],
                 'preshared_key' => $psk,
                 'address' => $address,
             ]);
-            return ['device' => $device, 'config' => $config];
+            return ['device' => $device, 'config' => $config, 'peer' => ['address' => $address, 'preshared_key' => $psk]];
         });
     }
 

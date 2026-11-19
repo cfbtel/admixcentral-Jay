@@ -861,6 +861,9 @@ Route::prefix('vpn')->name('vpn.portal.')->group(function () {
     Route::post('/setup', [App\Http\Controllers\Vpn\MicrosoftSetupController::class, 'start'])->middleware('throttle:vpn-portal')->name('setup.start');
     Route::get('/setup/callback', [App\Http\Controllers\Vpn\MicrosoftSetupController::class, 'callback'])->middleware('throttle:vpn-portal')->name('setup.callback');
     Route::post('/logout', [App\Http\Controllers\Vpn\PortalController::class, 'logout'])->name('logout');
+    Route::get('/app', [App\Http\Controllers\Vpn\AppPairController::class, 'show'])->middleware('throttle:vpn-portal')->name('app');
+    Route::post('/app', [App\Http\Controllers\Vpn\AppPairController::class, 'connect'])->middleware('throttle:vpn-portal')->name('app.connect');
+    Route::post('/app/token', [App\Http\Controllers\Vpn\AppPairController::class, 'token'])->middleware('throttle:vpn-portal')->name('app.token');
     Route::post('/devices', [App\Http\Controllers\Vpn\PortalController::class, 'addDevice'])->middleware('throttle:vpn-portal')->name('devices.store');
     Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\PortalController::class, 'removeDevice'])->whereNumber('device')->middleware('throttle:vpn-portal')->name('devices.remove');
 });

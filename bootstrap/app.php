@@ -24,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'deny.readonly' => \App\Http\Middleware\DenyReadOnly::class,
         ]);
+        // The CFBTEL VPN Windows app redeems its one-time code here (no browser session, no CSRF token).
+        $middleware->validateCsrfTokens(except: ['vpn/app/token']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request, \Throwable $e) =>

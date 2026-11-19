@@ -38,7 +38,7 @@ class PortalController extends Controller
 
 
     /** The signed-in VPN person, re-read from the database (access may have been removed since). */
-    private function person(Request $request): ?VpnUser
+    public function person(Request $request): ?VpnUser
     {
         $s = $request->session()->get(self::SESSION);
         if (!is_array($s) || ($s['exp'] ?? 0) < time()) {
@@ -67,7 +67,9 @@ class PortalController extends Controller
         ]);
         $user->update(['last_login_at' => now()]);
         VpnAuditLog::record($user->company_id, $user->upn, "signed_in ({$how})");
-        return redirect('/vpn');
+        // Back to where the sign-in started, e.g. the CFBTEL VPN app's "Connect this computer" page.
+        $to = (string) $request->session()->pull('vpn_intended', '');
+        return redirect(str_starts_with($to, '/vpn/app?') ? $to : '/vpn');
     }
 
     private function onPortalHost(Request $request): ?\Illuminate\Http\RedirectResponse

@@ -926,6 +926,56 @@ class VpnModuleTest extends TestCase
         $this->assertSame(['name' => 'pfSense-pkg-WireGuard'], $install->data());
     }
 
+    public function test_the_windows_app_signs_in_and_gets_its_tunnel_without_sending_a_private_key(): void
+    {
+        $w = $this->world();
+        $site = $this->onboard($w);
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $keys = WireGuard::keyPair();
+        $q = ['state' => 'st4t3-abcdefghijklmnop', 'port' => 50123, 'pub' => $keys['public'], 'name' => 'ANN-LAPTOP'];
+        auth()->logout();
+
+        // Not signed in: the staff page sign-in comes first, then back to the app page.
+        $this->get(self::PORTAL . '/vpn/app?' . http_build_query($q))->assertRedirect('/vpn');
+        $this->staffSignIn('ann')->assertRedirect('/vpn/app?' . http_build_query($q));
+        $this->get(self::PORTAL . '/vpn/app?' . http_build_query($q))->assertOk()->assertSee('Connect this computer')->assertSee('ANN-LAPTOP');
+        $this->get(self::PORTAL . '/vpn/app?state=x&port=1&pub=nope')->assertStatus(400);
+
+        // Connect: the device is made from the app's public key, the browser goes back to the app.
+        $r = $this->post(self::PORTAL . '/vpn/app', $q + ['site' => $site->id, 'device_name' => 'Ann laptop']);
+        $r->assertRedirect();
+        $to = $r->headers->get('Location');
+        $this->assertStringStartsWith('http://127.0.0.1:50123/callback?', $to);
+        parse_str(parse_url($to, PHP_URL_QUERY), $cb);
+        $this->assertSame($q['state'], $cb['state']);
+        $device = VpnDevice::where('name', 'Ann laptop')->firstOrFail();
+        $this->assertSame($keys['public'], $device->public_key);
+        $this->assertSame($keys['public'], end($this->fw->peers)['public_key']);
+
+        // The app redeems the code once, with its state (no session, no CSRF token).
+        auth()->logout();
+        $this->flushSession();
+        $this->post(self::PORTAL . '/vpn/app/token', ['code' => $cb['code'], 'state' => 'wrong-state-0000000'])->assertStatus(400);
+        $this->assertNull(\Illuminate\Support\Facades\Cache::get('vpn_app_code:' . hash('sha256', $cb['code'])));
+        // (a wrong state burns the code; start again)
+        $this->post(self::PORTAL . '/vpn/app', $q)->assertStatus(400); // signed out now
+        $this->staffSignIn('ann');
+        $keys2 = WireGuard::keyPair();
+        $r = $this->post(self::PORTAL . '/vpn/app', ['pub' => $keys2['public']] + $q + ['site' => $site->id, 'device_name' => 'Ann laptop 2']);
+        parse_str(parse_url($r->headers->get('Location'), PHP_URL_QUERY), $cb);
+        $t = $this->post(self::PORTAL . '/vpn/app/token', ['code' => $cb['code'], 'state' => $q['state']])->assertOk()->json();
+        $this->assertSame('CFBTEL-Acme-HQ', $t['name']);
+        $this->assertSame($site->server_public_key, $t['peer_public_key']);
+        $this->assertSame('vpn.acme.com:51820', $t['endpoint']);
+        $this->assertMatchesRegularExpression('#^10\.0\.70\.\d+/32$#', $t['address']);
+        $this->assertTrue(WireGuard::isKey($t['preshared_key']));
+        $this->assertArrayNotHasKey('private_key', $t);
+        $this->post(self::PORTAL . '/vpn/app/token', ['code' => $cb['code'], 'state' => $q['state']])->assertStatus(400); // once only
+
+        // The same public key can't be used twice.
+        $this->post(self::PORTAL . '/vpn/app', ['pub' => $keys2['public']] + $q + ['site' => $site->id, 'device_name' => 'Again'])->assertStatus(422);
+    }
+
     public function test_wireguard_helpers(): void
     {
         $kp = WireGuard::keyPair();

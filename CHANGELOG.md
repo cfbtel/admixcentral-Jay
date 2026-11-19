@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added — v0.8.3
+- Sign-in for the CFBTEL VPN Windows app: the app opens the staff page (`/vpn/app`), the person signs in and picks
+  the office, the device is created from the app's own public key (the private key never leaves the computer), and
+  the app redeems a one-time code (`POST /vpn/app/token`, 5 minutes, once) for its tunnel settings.
 - Microsoft 365 groups for VPN access: a company group (e.g. "VPN") gives its members access without adding them
   one by one, and a group per firewall limits that firewall to its members. Leaving a group removes the access at
   the next sync (15 minutes). Needs GroupMember.Read.All, which the one-click setup now grants (run it again for
