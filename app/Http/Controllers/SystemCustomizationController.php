@@ -125,7 +125,8 @@ class SystemCustomizationController extends Controller
             'enable_status_cache' => 'nullable|boolean',
             'site_url' => ['nullable', 'string', 'min:3', 'max:255', 'regex:/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])$/'],
             'site_protocol' => 'nullable|in:http,https',
-            'mail_driver' => 'nullable|in:mailgun,log',
+            'mail_driver' => 'nullable|in:mailgun,mandrill,log',
+            'mandrill_secret' => 'nullable|string|max:200',
             'mailgun_domain' => 'nullable|string',
             'mailgun_secret' => 'nullable|string',
             'mail_from_address' => 'nullable|email',
@@ -231,6 +232,11 @@ class SystemCustomizationController extends Controller
             SystemSetting::updateOrCreate(['key' => 'mailgun_endpoint'], ['value' => $request->mailgun_endpoint]);
         }
 
+        if ($request->filled('mandrill_secret')) {
+            // Stored encrypted; a blank field keeps the saved key.
+            SystemSetting::updateOrCreate(['key' => 'mandrill_secret'], ['value' => \Illuminate\Support\Facades\Crypt::encryptString(trim($request->mandrill_secret))]);
+        }
+
         if ($request->filled('mail_from_address')) {
             SystemSetting::updateOrCreate(['key' => 'mail_from_address'], ['value' => $request->mail_from_address]);
         }
@@ -263,7 +269,8 @@ class SystemCustomizationController extends Controller
             \Illuminate\Support\Facades\Mail::to($request->test_email)->send(new \App\Mail\TestEmail());
             return response()->json(['success' => true, 'message' => 'Test email sent successfully!']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Failed to send test email.'], 500);
+            $why = strtok($e->getMessage(), "\r\n");
+            return response()->json(['success' => false, 'message' => 'Failed to send test email' . ($why ? ": {$why}" : '.')], 500);
         }
     }
 

@@ -1390,16 +1390,30 @@
                                     class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option value="log">Local Logging (No Email Sent)</option>
                                     <option value="mailgun">Mailgun (Recommended)</option>
+                                    <option value="mandrill">Mandrill (Mailchimp Transactional)</option>
                                 </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Mailgun is recommended for
-                                    production.</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Use Mailgun or Mandrill in
+                                    production. Save the settings before sending a test email.</p>
                             </div>
 
-                            <!-- Mailgun Settings -->
-                            <div x-show="driver === 'mailgun'"
+                            <!-- Provider Settings -->
+                            <div x-show="driver !== 'log'"
                                 class="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <!-- Mandrill Specific Settings -->
+                                <div x-show="driver === 'mandrill'" class="mb-6">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mandrill
+                                        API Key{{ !empty($settings['mandrill_secret']) ? ' (saved — leave blank to keep it)' : '' }}</label>
+                                    <input type="password" name="mandrill_secret" value="" autocomplete="new-password"
+                                        placeholder="{{ !empty($settings['mandrill_secret']) ? '••••••••••••••••' : 'md-xxxxxxxxxxxxxxxxxxxx' }}"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Mailchimp Transactional
+                                        (mandrillapp.com) → Settings → SMTP &amp; API Info → New API Key. The From
+                                        Address must be on a sending domain verified in Mandrill (SPF/DKIM). The key is
+                                        stored encrypted.</p>
+                                </div>
+
                                 <!-- Mailgun Specific Settings -->
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div x-show="driver === 'mailgun'" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     <!-- Domain -->
                                     <div>
                                         <label
@@ -1415,9 +1429,8 @@
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">API
                                             Key (Secret)</label>
-                                        <input type="password" name="mailgun_secret"
-                                            value="{{ $settings['mailgun_secret'] ?? '' }}"
-                                            placeholder="key-xxxxxxxxxxxxxxxx"
+                                        <input type="password" name="mailgun_secret" value="" autocomplete="new-password"
+                                            placeholder="{{ !empty($settings['mailgun_secret']) ? 'saved — leave blank to keep it' : 'key-xxxxxxxxxxxxxxxx' }}"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     </div>
 

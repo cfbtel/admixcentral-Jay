@@ -22,6 +22,9 @@ class MailConfigServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Mandrill (Mailchimp Transactional) over its HTTPS API; the key is stored encrypted.
+        \Illuminate\Support\Facades\Mail::extend('mandrill', fn (array $config) => new \App\Mail\Transport\MandrillTransport((string) ($config['key'] ?? '')));
+
         // Only attempt to load settings if the table exists (prevents migration errors)
         if (!Schema::hasTable('system_settings')) {
             return;
@@ -33,6 +36,7 @@ class MailConfigServiceProvider extends ServiceProvider
                 'mailgun_domain',
                 'mailgun_secret',
                 'mailgun_endpoint',
+                'mandrill_secret',
                 'mail_from_address',
                 'mail_from_name'
             ])->pluck('value', 'key');
@@ -47,6 +51,18 @@ class MailConfigServiceProvider extends ServiceProvider
                     Config::set('services.mailgun.secret', $settings->get('mailgun_secret'));
                     // Ensure the endpoint is set (default is US)
                     Config::set('services.mailgun.endpoint', $settings->get('mailgun_endpoint', 'api.mailgun.net'));
+                }
+            }
+
+            if ($settings->get('mail_driver') === 'mandrill' && $settings->get('mandrill_secret')) {
+                try {
+                    $key = \Illuminate\Support\Facades\Crypt::decryptString($settings->get('mandrill_secret'));
+                } catch (\Throwable) {
+                    $key = null; // app key changed: enter the API key again
+                }
+                if ($key) {
+                    Config::set('mail.mailers.mandrill', ['transport' => 'mandrill', 'key' => $key]);
+                    Config::set('mail.default', 'mandrill');
                 }
             }
 

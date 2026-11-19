@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.8.1
+- Mandrill (Mailchimp Transactional, mandrillapp.com) as a mail driver in System Settings → Email Configuration,
+  sent through Mandrill's HTTPS API (messages/send-raw). The API key is stored encrypted and never shown again.
+  VPN invitations use it too when the VPN's own SMTP server is left empty.
+
+### Changed — v0.8.1
+- The Mailgun API key is no longer written back into the settings page; a blank field keeps the saved key.
+- A failed test email now shows the reason.
+
 ### Added — v0.8.0
 - One-click Microsoft 365 setup: **Connect Microsoft 365 automatically** on a company's VPN page (or a 7-day,
   single-use link for its IT admin). A Global Administrator signs in once; AdmixCentral creates the company's own
