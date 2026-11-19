@@ -348,7 +348,15 @@ class CompanyVpnController extends Controller
         ]);
         try {
             WireGuard::parseSubnet($v['subnet']);
-            $r = $this->vpn->driver($site)->setup(['listen_port' => (int) $v['port'], 'subnet' => $v['subnet'], 'lan' => $v['lan'], 'wan' => $v['wan']]);
+            $driver = $this->vpn->driver($site);
+            // A port already used by a tunnel on this firewall: nothing is changed; adopt that tunnel or pick another port.
+            $taken = collect($driver->tunnels())->first(fn ($t) => (int) ($t['listen_port'] ?? 0) === (int) $v['port']);
+            if ($taken) {
+                $what = trim(($taken['ref'] ?? '') . (($taken['name'] ?? '') !== '' && ($taken['name'] ?? '') !== ($taken['ref'] ?? '') ? " ({$taken['name']})" : ''));
+                return redirect()->route('vpn.site', [$company, $site])->withInput()
+                    ->with('error', "UDP {$v['port']} is already used by tunnel {$what} on this firewall. Use \"Adopt an existing tunnel\" below to use it, or choose another port. Nothing was changed.");
+            }
+            $r = $driver->setup(['listen_port' => (int) $v['port'], 'subnet' => $v['subnet'], 'lan' => $v['lan'], 'wan' => $v['wan']]);
         } catch (\Throwable $e) {
             $site->update(['status' => 'error', 'last_error' => $e->getMessage()]);
             return redirect()->route('vpn.site', [$company, $site])->with('error', 'Setup stopped: ' . $e->getMessage());

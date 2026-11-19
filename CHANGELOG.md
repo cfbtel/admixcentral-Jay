@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed — v0.8.3
+- VPN "Create WireGuard" checks the firewall's existing tunnels first: a UDP port already in use now stops with a
+  clear message (adopt that tunnel or pick another port) before anything on the firewall is changed.
 - System Performance tuning finds the PHP-FPM pool of the PHP version actually installed (e.g. PHP 8.4 / 8.5 at
   `/etc/php/8.5/fpm/pool.d/www.conf`) and restarts that version's PHP-FPM service; it only knew PHP 8.1–8.3.
 

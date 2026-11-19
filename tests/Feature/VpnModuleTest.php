@@ -786,6 +786,18 @@ class VpnModuleTest extends TestCase
         $this->assertStringContainsString('Application.ReadWrite.All', urldecode(MicrosoftSetup::make()->authorizeUrl()['url']));
     }
 
+    public function test_setup_refuses_a_port_an_existing_tunnel_uses(): void
+    {
+        $w = $this->world();
+        $this->fw->tunnels[] = ['ref' => 'tun_wg0', 'name' => 'Office', 'listen_port' => 51820, 'public_key' => WireGuard::keyPair()['public']];
+        $this->console($w['global'])->post("/companies/{$w['acme']->id}/vpn/firewalls/{$w['firewall']->id}/enable")->assertRedirect();
+        $site = VpnSite::firstOrFail();
+        $this->console($w['global'])->post("/companies/{$w['acme']->id}/vpn/sites/{$site->id}/setup", ['lan' => 'lan', 'wan' => 'wan', 'port' => 51820, 'subnet' => '10.0.70.0/24', 'endpoint_host' => 'vpn.acme.com'])
+            ->assertRedirect()->assertSessionHas('error', fn ($m) => str_contains($m, 'tun_wg0 (Office)') && str_contains($m, 'Adopt'));
+        $this->assertSame([], $this->fw->setups);
+        $this->assertNotSame('error', $site->fresh()->status);
+    }
+
     public function test_wireguard_helpers(): void
     {
         $kp = WireGuard::keyPair();
