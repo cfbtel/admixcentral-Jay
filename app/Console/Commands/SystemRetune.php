@@ -111,12 +111,35 @@ class SystemRetune extends Command
         return null;
     }
 
+    /**
+     * Pool config candidates: the running PHP version's first (e.g. /etc/php/8.5/fpm/pool.d/www.conf),
+     * then any other installed version, newest first, then the fixed paths of other distributions.
+     */
+    protected function fpmPoolCandidates(): array
+    {
+        $running = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+        $found = glob('/etc/php/*/fpm/pool.d/www.conf') ?: [];
+        usort($found, fn ($a, $b) => version_compare(basename(dirname($b, 3)), basename(dirname($a, 3))));
+        return array_values(array_unique(array_merge(["/etc/php/{$running}/fpm/pool.d/www.conf"], $found, $this->fpmPoolPaths)));
+    }
+
     protected function findFpmPoolConf(): ?string
     {
-        foreach ($this->fpmPoolPaths as $path) {
+        foreach ($this->fpmPoolCandidates() as $path) {
             if (file_exists($path)) return $path;
         }
         return null;
+    }
+
+    /** systemd unit names to try for PHP-FPM, matching the pool that was tuned first. */
+    protected function fpmServices(?string $fpmConf): array
+    {
+        $names = [];
+        if ($fpmConf && preg_match('#^/etc/php/(\d+\.\d+)/fpm/#', $fpmConf, $m)) {
+            $names[] = "php{$m[1]}-fpm";
+        }
+        $names[] = 'php' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . '-fpm';
+        return array_values(array_unique(array_merge($names, ['php8.3-fpm', 'php8.2-fpm', 'php8.1-fpm', 'php-fpm', 'php8-fpm'])));
     }
 
     protected function readFile(string $path): ?string
@@ -266,7 +289,7 @@ class SystemRetune extends Command
         // Restarting it synchronously kills the current FPM worker mid-request,
         // causing the HTTP response to be dropped (the "unexpected token <" error).
         // A 4s delay gives the response time to reach the browser first.
-        foreach (['php8.3-fpm', 'php8.2-fpm', 'php8.1-fpm', 'php-fpm', 'php8-fpm'] as $svc) {
+        foreach ($this->fpmServices($fpmConf) as $svc) {
             $state = trim((string) shell_exec("systemctl is-active {$svc} 2>/dev/null"));
             if ($state === 'active') {
                 shell_exec("nohup bash -c 'sleep 4 && sudo systemctl restart {$svc}' > /dev/null 2>&1 &");

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.8.3
+- System Performance tuning finds the PHP-FPM pool of the PHP version actually installed (e.g. PHP 8.4 / 8.5 at
+  `/etc/php/8.5/fpm/pool.d/www.conf`) and restarts that version's PHP-FPM service; it only knew PHP 8.1–8.3.
+
 ### Fixed — v0.8.2
 - Saving System Settings no longer rewrites APP_URL without its port (e.g. `https://host:26039`), which sent the
   browser to the wrong port after saving and broke the page styles until `.env` was fixed. When the host name and
