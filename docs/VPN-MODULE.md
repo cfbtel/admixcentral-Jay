@@ -21,12 +21,24 @@ Automation).
 
 ## 1. Microsoft 365 per company
 
-Each company signs in with **its own** Microsoft 365. There are two ways to connect it, chosen per company on its
+Each company signs in with **its own** Microsoft 365. There are three ways to connect it, chosen per company on its
 VPN page:
 
+* **Connect Microsoft 365 automatically (recommended):** click the button (or send the link, valid 7 days, single
+  use, to the company's IT admin). A **Global Administrator of the company's Microsoft 365** signs in and accepts
+  the permissions. AdmixCentral then, in the company's tenant, through Microsoft Graph (same approach as CIPP's SAM
+  wizard):
+  * creates the app **CFBTEL VPN** (this organization only, redirect URI `https://<portal host>/vpn/callback`);
+  * adds a client secret (2 years) and saves it encrypted, with the app ID and tenant;
+  * creates its enterprise application and grants admin consent: application `User.Read.All` and delegated
+    `openid profile email User.Read` for the whole organization;
+  * reads the tenant name and verified domains, and adds the domains no other company uses as work email domains;
+  * deletes CFBTEL's setup app from the company's tenant, so no setup access stays behind.
+  Running it again reuses the app, gives it a new secret and removes the old one: use this to renew before the
+  secret expires (the company page shows the date, red within 30 days). It needs the setup app in §1b.
 * **CFBTEL's shared app (default):** a Global Administrator of the company approves CFBTEL's multi-tenant app once
   (*Approve CFBTEL's app*, or send the link). Only that tenant's accounts can then sign in for the company.
-* **The company's own app (optional):** create an app registration in **the company's own** Entra and enter its
+* **The company's own app, by hand (advanced):** create an app registration in **the company's own** Entra and enter its
   Directory (tenant) ID, Application (client) ID and client secret on the company's VPN page. The secret is
   encrypted.
   * Account type: *this organizational directory only*.
@@ -62,6 +74,39 @@ In AdmixCentral, open **VPN Access** in the sidebar (global admins). Enter:
 - the portal host name;
 - the device limit per person.
 
+## 1b. CFBTEL's setup app for one-click setup (once, in CFBTEL's Microsoft Entra)
+
+Entra admin center → **App registrations → New registration**:
+- Name **CFBTEL VPN Setup**.
+- Supported account types: **Accounts in any organizational directory (Multitenant)**.
+- Redirect URI (Web): `https://<portal host>/vpn/setup/callback`.
+- **API permissions → Microsoft Graph → Delegated:** `Application.ReadWrite.All`, `AppRoleAssignment.ReadWrite.All`,
+  `DelegatedPermissionGrant.ReadWrite.All` (keep the default `User.Read`). No application permissions; no admin
+  consent is needed in CFBTEL's tenant.
+- **Certificates & secrets → New client secret.** Copy the *Value*.
+
+In **VPN Access → One-click Microsoft 365 setup**, enter its application (client) ID and secret. It must be a
+different app from the shared sign-in app.
+
+Why this is safe: the setup app has only delegated permissions, so it acts as the admin who signs in and only
+while they do; Microsoft makes that admin approve it. The admin's token is used for the setup requests and never
+saved. Its enterprise application is deleted from the company's tenant at the end.
+
+## 1c. People without Microsoft 365 (email and password)
+
+For companies without Microsoft Entra, a company admin invites people by email on the company's VPN page
+(**…or invite by email**). They get an email with a link (valid 7 days) to set their own password (at least 12
+characters), then sign in on the staff page with their email and password.
+- Admins can edit the name and email, resend the invitation (or a reset link), and remove the person. Removing
+  them removes their devices at once.
+- **Forgot password?** on the staff page sends a reset link (valid 1 hour); setting a new password signs out
+  other sessions.
+- 5 wrong passwords lock the account for 15 minutes.
+- **Email settings** (VPN Access, global admins): SMTP server, port, encryption, user, password (encrypted),
+  sender, and the invitation template (`{name}`, `{company}`, `{link}`, `{expires}`, `{portal}`; `{link}` is
+  required). Leave the SMTP server empty to use AdmixCentral's own mail setup. **Send a test email** checks it.
+- These people aren't checked against Microsoft by `vpn:sync`; removing them is up to the company admin.
+
 ## 2. Staff page host name
 
 Only `/vpn` pages and `/vpn-assets` are served on the portal host. The console, its login and the API answer 404
@@ -75,8 +120,8 @@ Point the name at this server, either way:
 
 1. **Companies → company → VPN Access.**
 2. **Microsoft 365:**
-   - Either click **Approve CFBTEL's app** (or send the link, valid 7 days, to the company's Global Administrator),
-     or enter the company's own app.
+   - Click **Connect Microsoft 365 automatically** (or send the link to the company's Global Administrator).
+     Without the setup app: **Approve CFBTEL's app**, or enter the company's own app by hand.
    - Enter the company's work email domains.
 3. **Firewalls → Enable VPN → Create WireGuard.**
    - Choose the LAN users may reach, the WAN, the UDP port, the VPN network and the public name or IP.
@@ -88,7 +133,7 @@ Point the name at this server, either way:
      - on OPNsense, an outbound NAT rule.
    - On pfSense, outbound NAT must be Automatic or Hybrid.
    - For a firewall already set up by hand, use **Adopt an existing tunnel** instead.
-4. **Who has VPN access → search → Give VPN access.**
+4. **Who has VPN access → search → Give VPN access**, or invite by email.
 
 ## 4. Firewall API permissions
 
@@ -111,6 +156,8 @@ Point the name at this server, either way:
 | pfSense / OPNsense drivers | `app/Services/Vpn/PfSenseWireGuardDriver.php`, `OpnSenseWireGuardDriver.php` |
 | Devices, removals, sync | `app/Services/Vpn/VpnManager.php`, `php artisan vpn:sync` (scheduled every 15 minutes) |
 | Microsoft sign-in, consent, Graph | `app/Services/Vpn/Microsoft.php` |
+| One-click Microsoft 365 setup | `app/Services/Vpn/MicrosoftSetup.php`, `app/Http/Controllers/Vpn/MicrosoftSetupController.php` |
+| Email-and-password accounts, invitation mail | `app/Services/Vpn/VpnAccounts.php`, `VpnMailer.php` |
 | Staff page / console pages | `app/Http/Controllers/Vpn/*`, `resources/views/vpn/*` |
 | Portal host restriction | `app/Http/Middleware/VpnPortalHost.php` |
 | Tests | `tests/Feature/VpnModuleTest.php` |

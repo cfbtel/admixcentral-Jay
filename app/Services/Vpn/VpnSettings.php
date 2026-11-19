@@ -12,7 +12,15 @@ use Illuminate\Support\Facades\Crypt;
  */
 class VpnSettings
 {
-    private const KEYS = ['ms_client_id', 'ms_client_secret', 'portal_host', 'max_devices', 'proxy_ips'];
+    private const KEYS = [
+        'ms_client_id', 'ms_client_secret', 'portal_host', 'max_devices', 'proxy_ips',
+        'smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'smtp_password', 'mail_from_address', 'mail_from_name',
+        'invite_subject', 'invite_body', 'setup_client_id', 'setup_client_secret',
+    ];
+    private const SECRETS = ['ms_client_secret', 'smtp_password', 'setup_client_secret'];
+
+    public const DEFAULT_INVITE_SUBJECT = 'Your {company} VPN access';
+    public const DEFAULT_INVITE_BODY = "Hello {name},\n\n{company} has given you VPN access.\n\nSet your password here (the link works until {expires}):\n{link}\n\nThen sign in at {portal} with this email address and add your computer or phone.\n\nIf you didn't expect this email, you can ignore it.\n\nCFBTEL Support";
 
     public static function get(string $key, ?string $default = null): ?string
     {
@@ -25,7 +33,7 @@ class VpnSettings
         if (!in_array($key, self::KEYS, true)) {
             throw new \InvalidArgumentException("Unknown VPN setting {$key}");
         }
-        if ($key === 'ms_client_secret' && $value !== null && $value !== '') {
+        if (in_array($key, self::SECRETS, true) && $value !== null && $value !== '') {
             $value = Crypt::encryptString($value);
         }
         SystemSetting::updateOrCreate(['key' => "vpn_{$key}"], ['value' => $value ?? '']);
@@ -48,6 +56,30 @@ class VpnSettings
         } catch (\Throwable) {
             return null; // app key changed: the secret has to be entered again
         }
+    }
+
+    /** Decrypted value of an encrypted setting, or null. */
+    public static function secret(string $key): ?string
+    {
+        $sealed = self::get($key);
+        if (!$sealed) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($sealed);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public static function inviteSubject(): string
+    {
+        return self::get('invite_subject') ?: self::DEFAULT_INVITE_SUBJECT;
+    }
+
+    public static function inviteBody(): string
+    {
+        return self::get('invite_body') ?: self::DEFAULT_INVITE_BODY;
     }
 
     public static function hasClientSecret(): bool

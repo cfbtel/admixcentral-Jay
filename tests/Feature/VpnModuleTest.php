@@ -11,6 +11,7 @@ use App\Models\Vpn\VpnSite;
 use App\Models\Vpn\VpnUser;
 use App\Services\PfSenseApiService;
 use App\Services\Vpn\Microsoft;
+use App\Services\Vpn\MicrosoftSetup;
 use App\Services\Vpn\PfSenseWireGuardDriver;
 use App\Services\Vpn\VpnException;
 use App\Services\Vpn\VpnManager;
@@ -140,6 +141,54 @@ class FakeMicrosoft extends Microsoft
     }
 }
 
+/** One-click setup without the network. */
+class FakeSetup extends MicrosoftSetup
+{
+    public array $calls = [];
+    public string $tid = '22222222-2222-2222-2222-222222222222';
+    public int $n = 0;
+
+    public function __construct()
+    {
+        parent::__construct('99999999-0000-0000-0000-000000000009', 'setup-secret');
+    }
+
+    public function authorizeUrl(?string $loginHint = null): array
+    {
+        return ['url' => 'https://login.microsoftonline.com/setup', 'pending' => ['state' => 'ss-' . bin2hex(random_bytes(4)), 'nonce' => 'n', 'verifier' => 'v']];
+    }
+
+    public function redeem(string $code, array $pending): array
+    {
+        $this->calls[] = "redeem {$code}";
+        return ['tid' => $this->tid, 'upn' => 'admin@acme.com', 'name' => 'Acme Admin'];
+    }
+
+    public function organization(): array
+    {
+        return ['name' => 'Acme Inc', 'domains' => ['acme.com', 'acme.onmicrosoft.com']];
+    }
+
+    public function provision(string $redirectUri, ?string $existingAppId = null): array
+    {
+        $this->n++;
+        $this->calls[] = 'provision ' . ($existingAppId ?? 'new') . " {$redirectUri}";
+        return ['client_id' => 'dddddddd-0000-0000-0000-000000000001', 'client_secret' => "auto-secret-{$this->n}", 'object_id' => 'eeeeeeee-0000-0000-0000-000000000001',
+            'key_id' => "ffffffff-0000-0000-0000-00000000000{$this->n}", 'expires_at' => \Carbon\CarbonImmutable::now()->addYears(2), 'reused' => $existingAppId !== null];
+    }
+
+    public function removeSecret(string $appObjectId, string $keyId): void
+    {
+        $this->calls[] = "remove-secret {$keyId}";
+    }
+
+    public function removeSetupAccess(): bool
+    {
+        $this->calls[] = 'cleanup';
+        return true;
+    }
+}
+
 class VpnModuleTest extends TestCase
 {
     use RefreshDatabase;
@@ -182,6 +231,8 @@ class VpnModuleTest extends TestCase
     {
         VpnManager::resolveDriversWith(null);
         Microsoft::$factory = null;
+        MicrosoftSetup::$factory = null;
+        MicrosoftSetup::$sleep = null;
         parent::tearDown();
     }
 
@@ -480,7 +531,7 @@ class VpnModuleTest extends TestCase
     public function test_a_company_can_use_its_own_microsoft_app(): void
     {
         $w = $this->world();
-        $page = $this->console($w['betaAdmin'])->get("/companies/{$w['beta']->id}/vpn")->assertOk()->assertSee('Use the company');
+        $page = $this->console($w['betaAdmin'])->get("/companies/{$w['beta']->id}/vpn")->assertOk()->assertSee('Enter the company');
         // Beta's admin enters Beta's own app registration and email domain.
         $this->console($w['betaAdmin'])->post("/companies/{$w['beta']->id}/vpn/microsoft", [
             'email_domains' => '@Beta.com, beta.us', 'ms_tenant_id' => self::BETA_TID,
@@ -516,6 +567,223 @@ class VpnModuleTest extends TestCase
         $this->post(self::PORTAL . '/vpn/login', ['email' => 'someone@unknown.example'])->assertRedirect();
         $this->assertSame(['login someone@unknown.example'], $this->ms->calls);
         $this->post(self::PORTAL . '/vpn/login', ['email' => 'not-an-email'])->assertRedirect('https://vpn.test/vpn');
+    }
+
+    /** Messages captured by the "array" mailer (phpunit.xml sets MAIL_MAILER=array). */
+    private function sentMail(): array
+    {
+        return collect(app('mail.manager')->mailer('array')->getSymfonyTransport()->messages())->map(fn ($m) => $m->getOriginalMessage())->all();
+    }
+
+    private function linkIn($message): string
+    {
+        preg_match('#https://vpn\.test(/vpn/password/[A-Za-z0-9_-]+)#', $message->getTextBody(), $m);
+        return $m[1] ?? '';
+    }
+
+    public function test_invited_person_sets_a_password_signs_in_and_adds_a_device(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/invite", ['name' => 'Dan Doe', 'email' => 'Dan@NoMicrosoft.example'])->assertSessionHas('success');
+        $dan = VpnUser::where('upn', 'dan@nomicrosoft.example')->firstOrFail();
+        $this->assertTrue($dan->isLocal());
+        $this->assertSame('invited', $dan->status());
+        $mail = $this->sentMail();
+        $this->assertCount(1, $mail);
+        $this->assertSame('Your Acme VPN access', $mail[0]->getSubject());
+        $link = $this->linkIn($mail[0]);
+        $this->assertNotSame('', $link);
+        $this->assertStringContainsString('Dan Doe', $mail[0]->getTextBody());
+
+        auth()->logout();
+        $this->get(self::PORTAL . $link)->assertOk()->assertSee('Set your VPN password');
+        $this->post(self::PORTAL . $link, ['password' => 'short', 'password_confirmation' => 'short'])->assertStatus(422);
+        $this->post(self::PORTAL . $link, ['password' => 'correct horse battery', 'password_confirmation' => 'different horse battery'])->assertStatus(422);
+        $this->post(self::PORTAL . $link, ['password' => 'correct horse battery', 'password_confirmation' => 'correct horse battery'])->assertRedirect('https://vpn.test/vpn');
+        $this->assertNotSame('correct horse battery', VpnUser::find($dan->id)->password);
+        $this->get(self::PORTAL . $link)->assertStatus(410); // single use
+        $this->addDevice('Laptop')->assertOk()->assertSee('<svg', false);
+        $this->assertCount(1, $this->fw->peers);
+
+        // Sign in again: email → password step (no Microsoft), wrong passwords lock the account.
+        $this->post(self::PORTAL . '/vpn/logout');
+        $this->post(self::PORTAL . '/vpn/login', ['email' => 'dan@nomicrosoft.example'])->assertOk()->assertSee('Forgot password?');
+        $this->assertSame([], $this->ms->calls);
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('https://vpn.test/vpn');
+        $this->post(self::PORTAL . '/vpn/logout');
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'wrong password ' . $i])->assertStatus(422);
+        }
+        $this->assertSame('locked', VpnUser::find($dan->id)->status());
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertStatus(422)->assertSee('Too many wrong passwords');
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'nobody@nomicrosoft.example', 'password' => 'whatever whatever'])->assertStatus(422)->assertSee('Wrong email or password');
+    }
+
+    public function test_admins_edit_resend_and_remove_email_accounts_and_password_reset_signs_out_old_sessions(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/invite", ['name' => 'Dan', 'email' => 'dan@nomicrosoft.example']);
+        $first = $this->linkIn($this->sentMail()[0]);
+        $dan = VpnUser::where('upn', 'dan@nomicrosoft.example')->first();
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/{$dan->id}/resend")->assertSessionHas('success');
+        $second = $this->linkIn($this->sentMail()[1]);
+        auth()->logout();
+        $this->get(self::PORTAL . $first)->assertStatus(410); // resend replaces the old link
+        $this->post(self::PORTAL . $second, ['password' => 'first password 123', 'password_confirmation' => 'first password 123'])->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertSee('Your devices');
+
+        // Edit: new email; duplicates refused; other companies can't edit.
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/{$dan->id}/update", ['name' => 'Dan D', 'email' => 'dan.d@nomicrosoft.example'])->assertSessionHas('success');
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/invite", ['name' => 'Again', 'email' => 'dan.d@nomicrosoft.example'])->assertSessionHasErrors('invite');
+        $this->console($w['betaAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/{$dan->id}/update", ['name' => 'X', 'email' => 'x@y.example'])->assertForbidden();
+        $this->assertSame('dan.d@nomicrosoft.example', VpnUser::find($dan->id)->upn);
+
+        // Forgot password: same answer for unknown emails; a reset signs out the old session.
+        auth()->logout();
+        $this->post(self::PORTAL . '/vpn/forgot', ['email' => 'unknown@nomicrosoft.example'])->assertOk()->assertSee('If that address has a VPN account');
+        $this->assertCount(2, $this->sentMail());
+        $this->post(self::PORTAL . '/vpn/forgot', ['email' => 'dan.d@nomicrosoft.example'])->assertOk();
+        $reset = $this->sentMail()[2];
+        $this->assertStringContainsString('Reset your Acme VPN password', $reset->getSubject());
+        $this->post(self::PORTAL . $this->linkIn($reset), ['password' => 'second password 456', 'password_confirmation' => 'second password 456'])->assertRedirect();
+        $this->addDevice('Phone')->assertOk();
+
+        // Remove: devices go at once; sync leaves email accounts alone otherwise.
+        $this->artisan('vpn:sync')->assertSuccessful();
+        $this->assertCount(1, $this->fw->peers);
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/{$dan->id}/remove")->assertRedirect();
+        $this->assertCount(0, $this->fw->peers);
+        $this->assertNull(VpnUser::find($dan->id));
+    }
+
+    public function test_email_settings_require_the_link_and_send_a_test(): void
+    {
+        $w = $this->world();
+        $base = ['smtp_encryption' => 'tls', 'invite_subject' => 'Hi', 'mail_from_address' => 'vpn@cfbtel.com'];
+        $this->console($w['global'])->post('/vpn-admin/settings/email', $base + ['invite_body' => 'no link here'])->assertSessionHasErrors('invite_body');
+        $this->console($w['global'])->post('/vpn-admin/settings/email', $base + ['invite_body' => 'Hello {name}: {link}', 'smtp_password' => 'mail-secret'])->assertSessionHas('success');
+        $this->assertSame('mail-secret', VpnSettings::secret('smtp_password'));
+        $this->assertStringNotContainsString('mail-secret', (string) \App\Models\SystemSetting::where('key', 'vpn_smtp_password')->value('value'));
+        $this->console($w['global'])->post('/vpn-admin/settings/email/test')->assertSessionHas('success');
+        $this->assertSame('CFBTEL VPN test email', $this->sentMail()[0]->getSubject());
+        $this->console($w['acmeAdmin'])->post('/vpn-admin/settings/email', $base + ['invite_body' => '{link}'])->assertForbidden();
+    }
+
+    private function runSetup(string $link, string $code = 'c1')
+    {
+        auth()->logout();
+        $this->get($link)->assertOk()->assertSee('Continue to Microsoft');
+        $t = parse_url($link, PHP_URL_QUERY);
+        parse_str($t, $q);
+        $this->post(self::PORTAL . '/vpn/setup', ['t' => $q['t']])->assertRedirect('https://login.microsoftonline.com/setup');
+        $state = session('vpn_ms_setup')['state'];
+        return $this->get(self::PORTAL . '/vpn/setup/callback?' . http_build_query(['code' => $code, 'state' => $state]));
+    }
+
+    public function test_one_click_setup_creates_the_companys_own_app_and_saves_it(): void
+    {
+        $w = $this->world();
+        // Without CFBTEL's setup app the button isn't offered.
+        $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertDontSee('Connect Microsoft 365 automatically');
+
+        $setup = new FakeSetup();
+        MicrosoftSetup::$factory = fn () => $setup;
+        $page = $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertSee('Connect Microsoft 365 automatically');
+        $link = $page->viewData('setupLink');
+        $this->assertStringStartsWith('https://vpn.test/vpn/setup?t=', $link);
+        $this->console($w['acmeReader'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertDontSee('Connect Microsoft 365 automatically');
+
+        $this->runSetup($link)->assertOk()->assertSee('Microsoft 365 connected')->assertSee('Acme Inc');
+        $this->assertSame(['redeem c1', 'provision new https://vpn.test/vpn/callback', 'cleanup'], $setup->calls);
+        $vc = VpnCompany::where('company_id', $w['acme']->id)->first();
+        $this->assertSame(self::ACME_TID, $vc->ms_tenant_id);
+        $this->assertSame('dddddddd-0000-0000-0000-000000000001', $vc->ms_client_id);
+        $this->assertSame('auto-secret-1', $vc->ms_client_secret);
+        $this->assertTrue($vc->hasOwnApp());
+        $this->assertSame(['acme.com', 'acme.onmicrosoft.com'], $vc->domains());
+        $this->assertTrue($vc->ms_secret_expires_at->isFuture());
+        $this->assertNotNull($vc->ms_auto_setup_at);
+
+        // The link works once.
+        auth()->logout();
+        $this->get($link)->assertStatus(400)->assertSee('Link expired');
+
+        // Running it again reuses the app, gives it a new secret and removes the old one.
+        $this->travel(2)->seconds();
+        $again = $this->console($w['global'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertSee('Run automatic setup again')->viewData('setupLink');
+        $setup->calls = [];
+        $this->runSetup($again, 'c2')->assertOk()->assertSee('updated');
+        $this->assertSame(['redeem c2', 'provision dddddddd-0000-0000-0000-000000000001 https://vpn.test/vpn/callback', 'remove-secret ffffffff-0000-0000-0000-000000000001', 'cleanup'], $setup->calls);
+        $this->assertSame('auto-secret-2', $vc->fresh()->ms_client_secret);
+
+        // The same tenant can't be linked to a second company, and domains stay unique.
+        $this->travel(2)->seconds();
+        $betaLink = $this->console($w['betaAdmin'])->get("/companies/{$w['beta']->id}/vpn")->assertOk()->viewData('setupLink');
+        $this->runSetup($betaLink, 'c3')->assertStatus(409)->assertSee('already linked to another company');
+        $this->assertNull(VpnCompany::where('company_id', $w['beta']->id)->value('ms_tenant_id'));
+
+        // A forged or tampered link is refused.
+        $this->get(self::PORTAL . '/vpn/setup?t=nope')->assertStatus(400);
+    }
+
+    public function test_setup_provisions_an_entra_app_through_microsoft_graph(): void
+    {
+        MicrosoftSetup::$sleep = fn (int $s) => null;
+        $graph = '00000000-aaaa-0000-0000-000000000000';
+        $addPasswordTries = 0;
+        Http::fake(function ($req) use ($graph, &$addPasswordTries) {
+            $m = $req->method();
+            $u = urldecode($req->url());
+            return match (true) {
+                $m === 'GET' && str_contains($u, "servicePrincipals(appId='00000003-0000-0000-c000-000000000000')") => Http::response(['id' => $graph,
+                    'oauth2PermissionScopes' => collect(['openid' => 's1', 'profile' => 's2', 'email' => 's3', 'User.Read' => 's4', 'Mail.Read' => 's9'])->map(fn ($id, $v) => ['id' => $id, 'value' => $v])->values()->all(),
+                    'appRoles' => [['id' => 'r1', 'value' => 'User.Read.All', 'allowedMemberTypes' => ['Application']], ['id' => 'r9', 'value' => 'Mail.Read', 'allowedMemberTypes' => ['Application']]]]),
+                $m === 'POST' && str_ends_with($u, '/v1.0/applications') => Http::response(['id' => 'obj-1', 'appId' => 'app-1'], 201),
+                $m === 'POST' && str_ends_with($u, '/applications/obj-1/addPassword') => ++$addPasswordTries < 2
+                    ? Http::response(['error' => ['code' => 'Request_ResourceNotFound', 'message' => 'Resource does not exist']], 404)
+                    : Http::response(['keyId' => 'KEY-1', 'secretText' => 'the-secret']),
+                $m === 'GET' && str_contains($u, "servicePrincipals(appId='app-1')") => Http::response(['error' => ['code' => 'Request_ResourceNotFound']], 404),
+                $m === 'POST' && str_ends_with($u, '/v1.0/servicePrincipals') => Http::response(['id' => 'sp-1'], 201),
+                $m === 'GET' && str_contains($u, '/servicePrincipals/sp-1/appRoleAssignments') => Http::response(['value' => []]),
+                $m === 'POST' && str_contains($u, "/servicePrincipals/{$graph}/appRoleAssignedTo") => Http::response(['id' => 'ra'], 201),
+                $m === 'GET' && str_contains($u, '/oauth2PermissionGrants') => Http::response(['value' => []]),
+                $m === 'POST' && str_ends_with($u, '/v1.0/oauth2PermissionGrants') => Http::response(['id' => 'g'], 201),
+                default => Http::response(['error' => ['message' => "unexpected {$m} {$u}"]], 500),
+            };
+        });
+        $app = (new MicrosoftSetup('setup-id', 'setup-secret'))->withToken('delegated')->provision('https://vpn.test/vpn/callback');
+        $this->assertSame(['app-1', 'the-secret', 'obj-1', 'key-1', false], [$app['client_id'], $app['client_secret'], $app['object_id'], $app['key_id'], $app['reused']]);
+        $this->assertEqualsWithDelta(now()->addYears(2)->getTimestamp(), $app['expires_at']->getTimestamp(), 5);
+        $this->assertSame(2, $addPasswordTries);
+
+        $sent = collect(Http::recorded())->map(fn ($r) => $r[0]);
+        $create = $sent->first(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/v1.0/applications'));
+        $this->assertSame('AzureADMyOrg', $create['signInAudience']);
+        $this->assertSame(['https://vpn.test/vpn/callback'], $create['web']['redirectUris']);
+        $this->assertEqualsCanonicalizing(
+            [['id' => 's1', 'type' => 'Scope'], ['id' => 's2', 'type' => 'Scope'], ['id' => 's3', 'type' => 'Scope'], ['id' => 's4', 'type' => 'Scope'], ['id' => 'r1', 'type' => 'Role']],
+            $create['requiredResourceAccess'][0]['resourceAccess']
+        );
+        $role = $sent->first(fn ($r) => str_contains($r->url(), 'appRoleAssignedTo'));
+        $this->assertSame(['principalId' => 'sp-1', 'resourceId' => $graph, 'appRoleId' => 'r1'], $role->data());
+        $grant = $sent->first(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/oauth2PermissionGrants'));
+        $this->assertSame(['clientId' => 'sp-1', 'consentType' => 'AllPrincipals', 'resourceId' => $graph, 'scope' => 'openid profile email User.Read'], $grant->data());
+        $this->assertTrue($sent->every(fn ($r) => $r->header('Authorization')[0] === 'Bearer delegated'));
+    }
+
+    public function test_settings_save_the_one_click_setup_app(): void
+    {
+        $w = $this->world();
+        $this->console($w['global'])->get('/vpn-admin/settings')->assertOk()->assertSee('One-click Microsoft 365 setup')->assertSee('https://vpn.test/vpn/setup/callback');
+        $this->console($w['global'])->post('/vpn-admin/settings/setup', ['setup_client_id' => 'bad'])->assertSessionHasErrors('setup_client_id');
+        $this->console($w['global'])->post('/vpn-admin/settings/setup', ['setup_client_id' => '99999999-0000-0000-0000-000000000009', 'setup_client_secret' => 'shh'])->assertSessionHas('success');
+        $this->assertTrue(MicrosoftSetup::make()->configured());
+        $this->assertNotSame('shh', \App\Models\SystemSetting::where('key', 'vpn_setup_client_secret')->value('value'));
+        $this->console($w['acmeAdmin'])->post('/vpn-admin/settings/setup', ['setup_client_id' => ''])->assertForbidden();
+        $this->assertStringContainsString('https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize', MicrosoftSetup::make()->authorizeUrl()['url']);
+        $this->assertStringContainsString('Application.ReadWrite.All', urldecode(MicrosoftSetup::make()->authorizeUrl()['url']));
     }
 
     public function test_wireguard_helpers(): void

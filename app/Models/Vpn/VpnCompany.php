@@ -12,9 +12,10 @@ use Illuminate\Database\Eloquent\Model;
 class VpnCompany extends Model
 {
     protected $table = 'vpn_companies';
-    protected $fillable = ['company_id', 'ms_tenant_id', 'ms_tenant_name', 'ms_client_id', 'ms_client_secret', 'email_domains'];
+    protected $fillable = ['company_id', 'ms_tenant_id', 'ms_tenant_name', 'ms_client_id', 'ms_client_secret', 'email_domains',
+        'ms_app_object_id', 'ms_secret_key_id', 'ms_secret_expires_at', 'ms_auto_setup_at'];
     protected $hidden = ['ms_client_secret'];
-    protected $casts = ['ms_client_secret' => 'encrypted'];
+    protected $casts = ['ms_client_secret' => 'encrypted', 'ms_secret_expires_at' => 'datetime', 'ms_auto_setup_at' => 'datetime'];
 
     public function company()
     {

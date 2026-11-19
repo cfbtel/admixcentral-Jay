@@ -164,7 +164,7 @@ class VpnManager
         $ms ??= Microsoft::for($vc);
         $skipped = false;
         if ($tenant) {
-            $users = VpnUser::where('company_id', $company->id)->get();
+            $users = VpnUser::where('company_id', $company->id)->where('auth_type', 'microsoft')->whereNotNull('ms_oid')->get();
             $states = [];
             try {
                 foreach ($users as $u) {

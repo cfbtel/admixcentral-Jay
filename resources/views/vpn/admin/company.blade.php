@@ -32,17 +32,34 @@
                 <h3 class="text-lg font-bold mb-3">1. Microsoft 365</h3>
                 @if($vc->ms_tenant_id)
                     <p class="text-sm">✓ Connected to <strong>{{ $vc->ms_tenant_name ?? $vc->ms_tenant_id }}</strong> <span class="text-gray-500">({{ $vc->ms_tenant_id }})</span>
-                        · {{ $vc->hasOwnApp() ? 'the company\'s own Microsoft app (' . $vc->ms_client_id . ')' : 'CFBTEL\'s shared app' }}</p>
-                @elseif($consentError)
+                        · {{ $vc->hasOwnApp() ? 'the company\'s own Microsoft app (' . $vc->ms_client_id . ')' : 'CFBTEL\'s shared app' }}
+                        @if($vc->ms_auto_setup_at) · set up automatically {{ $vc->ms_auto_setup_at->format('M j, Y') }}@endif</p>
+                    @if($vc->hasOwnApp() && $vc->ms_secret_expires_at)
+                        @php $days = (int) now()->diffInDays($vc->ms_secret_expires_at, false); @endphp
+                        <p class="text-sm {{ $days < 30 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-500' }}">App secret {{ $days < 0 ? 'expired' : 'expires' }} {{ $vc->ms_secret_expires_at->format('M j, Y') }}{{ $days < 30 ? ' — run the automatic setup again to renew it.' : '' }}</p>
+                    @endif
+                @elseif($consentError && !$setupReady)
                     <p class="text-sm text-yellow-700 dark:text-yellow-300">{{ $consentError }}</p>
                 @else
-                    <p class="text-sm mb-3">Not connected. Either a Global Administrator of this company's Microsoft 365 approves CFBTEL's VPN app once, or you enter the company's own Microsoft app below.</p>
-                    @if($canManage)
+                    <p class="text-sm mb-3">Not connected yet.</p>
+                    @if($canManage && $consentUrl && !$setupReady)
+                        <p class="text-sm mb-3">A Global Administrator of this company's Microsoft 365 approves CFBTEL's VPN app once, or you enter the company's own Microsoft app below.</p>
                         <a href="{{ $consentUrl }}" class="{{ $btn }}">Approve CFBTEL's app</a>
                         <label class="block mt-3 text-xs text-gray-500">Or send this link to the company's Microsoft 365 admin (valid 7 days)
                             <input readonly value="{{ $consentUrl }}" class="mt-1 w-full {{ $input }}" onclick="this.select()">
                         </label>
                     @endif
+                @endif
+
+                @if($canManage && $setupLink)
+                    <div class="mt-4 p-4 rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 max-w-2xl">
+                        <p class="text-sm font-semibold">{{ $vc->hasOwnApp() ? 'Renew or repair automatically' : 'Connect Microsoft 365 automatically' }}</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-1">Sign in as a <strong>Global Administrator of this company's Microsoft 365</strong>. AdmixCentral creates the company's own "CFBTEL VPN" app there with all its permissions approved, saves the app ID, secret and email domains here, then removes its setup access. Nothing to copy or type.</p>
+                        <a href="{{ $setupLink }}" class="{{ $btn }} mt-3 inline-block">{{ $vc->hasOwnApp() ? 'Run automatic setup again' : 'Connect Microsoft 365 automatically' }}</a>
+                        <label class="block mt-3 text-xs text-gray-500">Not their admin? Send this link to the company's Microsoft 365 admin (valid {{ \App\Http\Controllers\Vpn\MicrosoftSetupController::LINK_DAYS }} days, works once)
+                            <input readonly value="{{ $setupLink }}" class="mt-1 w-full {{ $input }}" onclick="this.select()">
+                        </label>
+                    </div>
                 @endif
 
                 @if($canManage)
@@ -53,7 +70,7 @@
                         <p class="text-xs text-gray-500">Staff type their work email on the VPN page; its domain picks this company. Required when the company uses its own Microsoft app.</p>
 
                         <details class="mt-2" @if($vc->hasOwnApp() || $errors->hasAny(['ms_tenant_id', 'ms_client_id', 'ms_client_secret'])) open @endif>
-                            <summary class="cursor-pointer text-sm font-semibold">Use the company's own Microsoft app (its own Entra)</summary>
+                            <summary class="cursor-pointer text-sm font-semibold">Enter the company's own Microsoft app by hand (advanced)</summary>
                             <div class="mt-3 space-y-3">
                                 <ol class="text-xs text-gray-600 dark:text-gray-300 list-decimal ml-5 space-y-1">
                                     <li>In <strong>the company's</strong> Entra admin center: App registrations → New registration → name <em>CFBTEL VPN</em>, <em>Accounts in this organizational directory only</em>.</li>
@@ -120,29 +137,49 @@
                 <h3 class="text-lg font-bold mb-3">3. Who has VPN access</h3>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead><tr><th class="{{ $th }}">Person</th><th class="{{ $th }}">Devices</th><th class="{{ $th }}">Last sign-in</th><th class="{{ $th }}">Added by</th><th class="{{ $th }}"></th></tr></thead>
+                        <thead><tr><th class="{{ $th }}">Person</th><th class="{{ $th }}">Signs in with</th><th class="{{ $th }}">Devices</th><th class="{{ $th }}">Last sign-in</th><th class="{{ $th }}">Added by</th><th class="{{ $th }}"></th></tr></thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                         @forelse($users as $u)
                             <tr>
                                 <td class="{{ $td }}"><div class="font-medium">{{ $u->name }}</div><div class="text-xs text-gray-500">{{ $u->upn }}</div></td>
+                                <td class="{{ $td }}">
+                                    @if($u->isLocal())
+                                        Email &amp; password
+                                        @php $st = $u->status(); @endphp
+                                        <span class="text-xs {{ $st === 'active' ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400' }}">· {{ $st === 'invited' ? 'invited, password not set' : $st }}</span>
+                                    @else
+                                        Microsoft 365
+                                    @endif
+                                </td>
                                 <td class="{{ $td }}">{{ $u->active_devices_count }}</td>
                                 <td class="{{ $td }}">{{ $u->last_login_at?->diffForHumans() ?? 'never' }}</td>
                                 <td class="{{ $td }} text-xs text-gray-500">{{ $u->added_by }}</td>
-                                <td class="{{ $td }} text-right">
+                                <td class="{{ $td }} text-right whitespace-nowrap">
                                     @if($canManage)
-                                        <form method="POST" action="{{ route('vpn.users.remove', [$company, $u]) }}" class="inline" onsubmit="return confirm('Remove this person\'s VPN access? Their devices stop working right away.')">@csrf<button class="{{ $btnRed }}">Remove access</button></form>
+                                        @if($u->isLocal())
+                                            <details class="inline-block text-left align-middle">
+                                                <summary class="{{ $btn2 }} cursor-pointer">Edit</summary>
+                                                <form method="POST" action="{{ route('vpn.users.update', [$company, $u]) }}" class="mt-2 space-y-2 p-3 rounded-md bg-gray-50 dark:bg-gray-700/50">@csrf
+                                                    <input name="name" value="{{ $u->name }}" class="w-56 {{ $input }}" aria-label="Name">
+                                                    <input name="email" type="email" value="{{ $u->upn }}" class="w-56 {{ $input }}" aria-label="Email">
+                                                    <button class="{{ $btn2 }}">Save</button>
+                                                </form>
+                                            </details>
+                                            <form method="POST" action="{{ route('vpn.users.resend', [$company, $u]) }}" class="inline">@csrf<button class="{{ $btn2 }}">{{ $u->password ? 'Send password link' : 'Resend invite' }}</button></form>
+                                        @endif
+                                        <form method="POST" action="{{ route('vpn.users.remove', [$company, $u]) }}" class="inline" onsubmit="return confirm('Remove this person\'s VPN access? Their devices stop working right away.')">@csrf<button class="{{ $btnRed }}">Remove</button></form>
                                     @endif
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="{{ $td }} text-gray-500">Nobody has VPN access yet.</td></tr>
+                            <tr><td colspan="6" class="{{ $td }} text-gray-500">Nobody has VPN access yet.</td></tr>
                         @endforelse
                         </tbody>
                     </table>
                 </div>
 
                 @if($canManage)
-                    <h4 class="font-semibold mt-6 mb-2">Give someone VPN access</h4>
+                    <h4 class="font-semibold mt-6 mb-2">Give someone VPN access — from Microsoft 365</h4>
                     @if($vc->ms_tenant_id)
                         <form method="GET" action="{{ route('vpn.company', $company) }}" class="flex gap-2 max-w-xl">
                             <input name="q" value="{{ $q }}" placeholder="Search this company's Microsoft 365 by name or email" class="flex-1 {{ $input }}">
@@ -162,8 +199,18 @@
                             </ul>
                         @endif
                     @else
-                        <p class="text-sm text-gray-500">Connect Microsoft 365 first.</p>
+                        <p class="text-sm text-gray-500">Connect Microsoft 365 first (or invite by email below).</p>
                     @endif
+
+                    <h4 class="font-semibold mt-6 mb-1">…or invite by email (no Microsoft needed)</h4>
+                    <p class="text-xs text-gray-500 mb-2">For companies without Microsoft Entra. The person gets an email with a link (valid 7 days) to set their own password, then signs in on the VPN page with their email and password.</p>
+                    @error('invite')<p class="text-sm text-red-600 dark:text-red-400 mb-2">{{ $message }}</p>@enderror
+                    @error('edit')<p class="text-sm text-red-600 dark:text-red-400 mb-2">{{ $message }}</p>@enderror
+                    <form method="POST" action="{{ route('vpn.users.invite', $company) }}" class="flex flex-wrap gap-2 max-w-2xl">@csrf
+                        <input name="name" value="{{ old('name') }}" placeholder="Full name" required maxlength="120" class="flex-1 min-w-[10rem] {{ $input }}">
+                        <input name="email" type="email" value="{{ old('email') }}" placeholder="name@company.com" required class="flex-1 min-w-[12rem] {{ $input }}">
+                        <button class="{{ $btn }}">Send invitation</button>
+                    </form>
                 @endif
             </div>
 

@@ -22,6 +22,20 @@ class VpnSettingsController extends Controller
             'portalHost' => VpnSettings::portalHost(),
             'maxDevices' => VpnSettings::maxDevices(),
             'proxyIps' => implode(', ', VpnSettings::proxyIps()),
+            'mail' => [
+                'smtp_host' => VpnSettings::get('smtp_host'),
+                'smtp_port' => VpnSettings::get('smtp_port'),
+                'smtp_encryption' => VpnSettings::get('smtp_encryption', 'tls'),
+                'smtp_username' => VpnSettings::get('smtp_username'),
+                'has_password' => VpnSettings::secret('smtp_password') !== null,
+                'mail_from_address' => VpnSettings::get('mail_from_address'),
+                'mail_from_name' => VpnSettings::get('mail_from_name'),
+                'invite_subject' => VpnSettings::inviteSubject(),
+                'invite_body' => VpnSettings::inviteBody(),
+            ],
+            'setupClientId' => VpnSettings::get('setup_client_id'),
+            'setupHasSecret' => VpnSettings::secret('setup_client_secret') !== null,
+            'setupRedirect' => \App\Services\Vpn\MicrosoftSetup::redirectUri(),
             'redirects' => [VpnSettings::portalUrl('/vpn/callback'), VpnSettings::portalUrl('/vpn/consent/callback')],
             'companies' => Company::orderBy('name')->get()->map(fn ($c) => [
                 'company' => $c,
@@ -30,6 +44,66 @@ class VpnSettingsController extends Controller
                 'people' => VpnUser::where('company_id', $c->id)->count(),
             ]),
         ]);
+    }
+
+    public function updateEmail(Request $request)
+    {
+        $v = $request->validate([
+            'smtp_host' => ['nullable', 'regex:/^[A-Za-z0-9.-]{1,190}$/'],
+            'smtp_port' => ['nullable', 'integer', 'between:1,65535'],
+            'smtp_encryption' => ['required', 'in:tls,ssl,none'],
+            'smtp_username' => ['nullable', 'string', 'max:190'],
+            'smtp_password' => ['nullable', 'string', 'max:300'],
+            'mail_from_address' => ['nullable', 'email', 'max:190'],
+            'mail_from_name' => ['nullable', 'string', 'max:120'],
+            'invite_subject' => ['required', 'string', 'max:200'],
+            'invite_body' => ['required', 'string', 'max:5000'],
+        ]);
+        if (!str_contains($v['invite_body'], '{link}')) {
+            return back()->withErrors(['invite_body' => 'The invitation must contain {link}, the set-password link.'])->withInput();
+        }
+        foreach (['smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'mail_from_address', 'mail_from_name', 'invite_subject', 'invite_body'] as $k) {
+            VpnSettings::set($k, isset($v[$k]) ? (string) $v[$k] : '');
+        }
+        if (!empty($v['smtp_password'])) {
+            VpnSettings::set('smtp_password', $v['smtp_password']); // blank keeps the saved password
+        }
+        return redirect()->route('vpn.settings')->with('success', 'Email settings saved.');
+    }
+
+    public function testEmail(Request $request, \App\Services\Vpn\VpnMailer $mailer)
+    {
+        $to = $request->user()->email;
+        try {
+            $mailer->send($to, 'CFBTEL VPN test email', "This is a test from AdmixCentral's VPN email settings.\n\nIf you can read this, invitations will be delivered.");
+        } catch (\Throwable $e) {
+            return redirect()->route('vpn.settings')->with('error', 'Sending failed: ' . $e->getMessage());
+        }
+        return redirect()->route('vpn.settings')->with('success', "Test email sent to {$to}.");
+    }
+
+    /** CFBTEL's setup app for one-click Microsoft 365 setup. */
+    public function updateSetup(Request $request)
+    {
+        $v = $request->validate([
+            'setup_client_id' => ['nullable', 'string', 'max:36'],
+            'setup_client_secret' => ['nullable', 'string', 'max:200'],
+        ]);
+        $id = strtolower(trim((string) ($v['setup_client_id'] ?? '')));
+        if ($id !== '' && !Microsoft::isGuid($id)) {
+            return back()->withErrors(['setup_client_id' => 'The application (client) ID looks like 00000000-0000-0000-0000-000000000000.'])->withInput();
+        }
+        if ($id !== '' && $id === VpnSettings::clientId()) {
+            return back()->withErrors(['setup_client_id' => 'Use a separate app registration for setup, not the shared sign-in app.'])->withInput();
+        }
+        VpnSettings::set('setup_client_id', $id);
+        if (!empty($v['setup_client_secret'])) {
+            VpnSettings::set('setup_client_secret', $v['setup_client_secret']); // blank keeps the saved secret
+        }
+        if ($id === '') {
+            VpnSettings::set('setup_client_secret', '');
+        }
+        return redirect()->route('vpn.settings')->with('success', 'One-click setup app saved.');
     }
 
     public function update(Request $request)

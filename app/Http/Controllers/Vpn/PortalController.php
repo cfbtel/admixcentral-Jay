@@ -32,7 +32,7 @@ class PortalController extends Controller
     private const PENDING = 'vpn_portal_login';
     public const PLATFORMS = ['windows' => 'Windows PC', 'macos' => 'Mac', 'iphone' => 'iPhone / iPad', 'android' => 'Android'];
 
-    public function __construct(private VpnManager $vpn)
+    public function __construct(private VpnManager $vpn, private \App\Services\Vpn\VpnAccounts $accounts)
     {
     }
 
@@ -45,7 +45,29 @@ class PortalController extends Controller
             return null;
         }
         $user = VpnUser::find($s['id'] ?? 0);
-        return $user && $user->ms_oid === ($s['oid'] ?? null) ? $user : null;
+        if (!$user) {
+            return null;
+        }
+        if ($user->isLocal()) {
+            // A password change (or reset) signs out older sessions.
+            return ($s['auth'] ?? '') === 'local' && $user->password && hash_equals($user->passwordVersion(), (string) ($s['pv'] ?? '')) ? $user : null;
+        }
+        return ($s['auth'] ?? 'microsoft') === 'microsoft' && $user->ms_oid === ($s['oid'] ?? null) ? $user : null;
+    }
+
+    private function startSession(Request $request, VpnUser $user, string $how)
+    {
+        $request->session()->regenerate();
+        $request->session()->put(self::SESSION, [
+            'id' => $user->id,
+            'auth' => $user->isLocal() ? 'local' : 'microsoft',
+            'oid' => $user->ms_oid,
+            'pv' => $user->isLocal() ? $user->passwordVersion() : null,
+            'exp' => time() + 30 * 60,
+        ]);
+        $user->update(['last_login_at' => now()]);
+        VpnAuditLog::record($user->company_id, $user->upn, "signed_in ({$how})");
+        return redirect('/vpn');
     }
 
     private function onPortalHost(Request $request): ?\Illuminate\Http\RedirectResponse
@@ -104,6 +126,10 @@ class PortalController extends Controller
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return redirect('/vpn')->with('vpn_error', 'Enter your work email address.');
         }
+        // People with an email-and-password VPN account get the password step instead of Microsoft.
+        if (VpnUser::findLocalByEmail($email)) {
+            return response()->view('vpn.portal.password', ['email' => $email, 'error' => null]);
+        }
         $vc = VpnCompany::forEmail($email);
         $own = $vc && $vc->hasOwnApp() ? $vc : null;
         try {
@@ -136,7 +162,7 @@ class PortalController extends Controller
         if ($vc && $vc->ms_tenant_id !== $id['tid']) {
             $vc = null; // signed in to another tenant than the company's own app
         }
-        $user = $vc ? VpnUser::where('company_id', $vc->company_id)->where('ms_oid', $id['oid'])->first() : null;
+        $user = $vc ? VpnUser::where('company_id', $vc->company_id)->where('auth_type', 'microsoft')->where('ms_oid', $id['oid'])->first() : null;
         if (!$user) {
             Log::notice('VPN portal: sign-in refused', ['upn' => $id['upn'], 'tid' => $id['tid']]);
             return $this->message(
@@ -146,11 +172,71 @@ class PortalController extends Controller
             );
         }
         // Devices are labelled with the sign-in name; keep it current.
-        $user->update(['upn' => $id['upn'], 'name' => $id['name'], 'last_login_at' => now()]);
-        $request->session()->regenerate();
-        $request->session()->put(self::SESSION, ['id' => $user->id, 'oid' => $user->ms_oid, 'exp' => time() + 30 * 60]);
-        VpnAuditLog::record($user->company_id, $user->upn, 'signed_in');
-        return redirect('/vpn');
+        $user->update(['upn' => $id['upn'], 'name' => $id['name']]);
+        return $this->startSession($request, $user, 'Microsoft');
+    }
+
+    /** Email-and-password sign-in (accounts invited by email, for companies without Microsoft Entra). */
+    public function passwordLogin(Request $request)
+    {
+        $email = \App\Services\Vpn\VpnAccounts::cleanEmail($request->input('email'));
+        $password = (string) $request->input('password', '');
+        if (!$email || $password === '') {
+            return response()->view('vpn.portal.password', ['email' => (string) $email, 'error' => 'Enter your email and password.'], 422);
+        }
+        $r = $this->accounts->attempt($email, $password);
+        if (!$r['user']) {
+            return response()->view('vpn.portal.password', ['email' => $email, 'error' => $r['error']], 422);
+        }
+        return $this->startSession($request, $r['user'], 'password');
+    }
+
+    /** "Forgot password?": always the same answer, so it can't be used to find accounts. */
+    public function forgot(Request $request)
+    {
+        $email = \App\Services\Vpn\VpnAccounts::cleanEmail($request->input('email'));
+        $user = $email ? VpnUser::findLocalByEmail($email) : null;
+        if ($user) {
+            try {
+                $this->accounts->sendLink($user, true);
+                VpnAuditLog::record($user->company_id, $user->upn, 'password_reset_requested');
+            } catch (\Throwable $e) {
+                Log::error('VPN portal: sending a password link failed', ['error' => $e->getMessage()]);
+            }
+        }
+        return $this->message('Check your email', 'If that address has a VPN account, we\'ve sent it a link to set a new password. The link works for one hour.');
+    }
+
+    /** The emailed invitation / new-password link. */
+    public function passwordForm(Request $request, string $token)
+    {
+        $user = \App\Services\Vpn\VpnAccounts::userForToken($token);
+        if (!$user) {
+            return $this->message('Link expired', 'This link has expired or was already used. Use "Forgot password?" on the sign-in page, or ask your IT admin to resend your invitation.', 410);
+        }
+        return response()->view('vpn.portal.set-password', ['account' => $user, 'token' => $token, 'error' => null, 'min' => \App\Services\Vpn\VpnAccounts::MIN_PASSWORD]);
+    }
+
+    public function setPassword(Request $request, string $token)
+    {
+        $user = \App\Services\Vpn\VpnAccounts::userForToken($token);
+        if (!$user) {
+            return $this->message('Link expired', 'This link has expired or was already used. Use "Forgot password?" on the sign-in page.', 410);
+        }
+        $password = (string) $request->input('password', '');
+        $min = \App\Services\Vpn\VpnAccounts::MIN_PASSWORD;
+        $error = match (true) {
+            mb_strlen($password) < $min => "Use at least {$min} characters.",
+            mb_strlen($password) > 200 => 'That password is too long.',
+            !hash_equals($password, (string) $request->input('password_confirmation', '')) => 'The two passwords don\'t match.',
+            strcasecmp($password, $user->upn) === 0 => 'Don\'t use your email address as the password.',
+            default => null,
+        };
+        if ($error) {
+            return response()->view('vpn.portal.set-password', ['account' => $user, 'token' => $token, 'error' => $error, 'min' => $min], 422);
+        }
+        $this->accounts->setPassword($user, $password);
+        return $this->startSession($request, $user->fresh(), 'new password');
     }
 
     public function logout(Request $request)

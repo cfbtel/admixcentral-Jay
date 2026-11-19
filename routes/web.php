@@ -851,8 +851,15 @@ Route::prefix('vpn')->name('vpn.portal.')->group(function () {
     Route::get('/', [App\Http\Controllers\Vpn\PortalController::class, 'index'])->name('index');
     Route::get('/help', [App\Http\Controllers\Vpn\PortalController::class, 'help'])->name('help');
     Route::match(['get', 'post'], '/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:vpn-portal')->name('login');
+    Route::post('/login/password', [App\Http\Controllers\Vpn\PortalController::class, 'passwordLogin'])->middleware('throttle:vpn-portal')->name('login.password');
+    Route::post('/forgot', [App\Http\Controllers\Vpn\PortalController::class, 'forgot'])->middleware('throttle:5,1')->name('forgot');
+    Route::get('/password/{token}', [App\Http\Controllers\Vpn\PortalController::class, 'passwordForm'])->middleware('throttle:vpn-portal')->name('password');
+    Route::post('/password/{token}', [App\Http\Controllers\Vpn\PortalController::class, 'setPassword'])->middleware('throttle:vpn-portal')->name('password.store');
     Route::get('/callback', [App\Http\Controllers\Vpn\PortalController::class, 'callback'])->middleware('throttle:vpn-portal')->name('callback');
     Route::get('/consent/callback', [App\Http\Controllers\Vpn\PortalController::class, 'consentCallback'])->middleware('throttle:vpn-portal')->name('consent');
+    Route::get('/setup', [App\Http\Controllers\Vpn\MicrosoftSetupController::class, 'show'])->middleware('throttle:vpn-portal')->name('setup');
+    Route::post('/setup', [App\Http\Controllers\Vpn\MicrosoftSetupController::class, 'start'])->middleware('throttle:vpn-portal')->name('setup.start');
+    Route::get('/setup/callback', [App\Http\Controllers\Vpn\MicrosoftSetupController::class, 'callback'])->middleware('throttle:vpn-portal')->name('setup.callback');
     Route::post('/logout', [App\Http\Controllers\Vpn\PortalController::class, 'logout'])->name('logout');
     Route::post('/devices', [App\Http\Controllers\Vpn\PortalController::class, 'addDevice'])->middleware('throttle:vpn-portal')->name('devices.store');
     Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\PortalController::class, 'removeDevice'])->whereNumber('device')->middleware('throttle:vpn-portal')->name('devices.remove');
@@ -863,6 +870,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(App\Http\Middleware\CheckRole::class . ':global_admin')->group(function () {
         Route::get('/vpn-admin/settings', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'index'])->name('vpn.settings');
         Route::post('/vpn-admin/settings', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'update'])->name('vpn.settings.update');
+        Route::post('/vpn-admin/settings/setup', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'updateSetup'])->name('vpn.settings.setup');
+        Route::post('/vpn-admin/settings/email', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'updateEmail'])->name('vpn.settings.email');
+        Route::post('/vpn-admin/settings/email/test', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'testEmail'])->middleware('throttle:5,1')->name('vpn.settings.email.test');
     });
 
     Route::prefix('companies/{company}/vpn')->middleware(App\Http\Middleware\EnsureTenantScope::class)->group(function () {
@@ -870,6 +880,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/microsoft', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveMicrosoft'])->middleware('deny.readonly')->name('vpn.microsoft.save');
         Route::post('/microsoft/own-app/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeOwnApp'])->middleware('deny.readonly')->name('vpn.microsoft.remove');
         Route::post('/users', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'addUser'])->middleware('deny.readonly')->name('vpn.users.store');
+        Route::post('/users/invite', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'inviteUser'])->middleware(['deny.readonly', 'throttle:30,1'])->name('vpn.users.invite');
+        Route::post('/users/{vpnUser}/update', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'updateUser'])->middleware('deny.readonly')->name('vpn.users.update');
+        Route::post('/users/{vpnUser}/resend', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'resendInvite'])->middleware(['deny.readonly', 'throttle:30,1'])->name('vpn.users.resend');
         Route::post('/users/{vpnUser}/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeUser'])->middleware('deny.readonly')->name('vpn.users.remove');
         Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeDevice'])->middleware('deny.readonly')->name('vpn.devices.remove');
         Route::post('/firewalls/{firewall}/enable', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'enableFirewall'])->middleware('deny.readonly')->name('vpn.firewall.enable');

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.8.0
+- One-click Microsoft 365 setup: **Connect Microsoft 365 automatically** on a company's VPN page (or a 7-day,
+  single-use link for its IT admin). A Global Administrator signs in once; AdmixCentral creates the company's own
+  "CFBTEL VPN" app in its tenant with admin consent (User.Read.All; openid profile email User.Read), a 2-year
+  secret, its tenant name and email domains, then removes CFBTEL's setup access. Running it again renews the secret.
+  Needs a "CFBTEL VPN Setup" app (delegated permissions only) in VPN settings. The secret's expiry shows on the page.
+- Email-and-password VPN accounts for companies without Microsoft Entra: email invitations with a set-password link,
+  forgot-password links, lockout after 5 wrong passwords, edit / resend / remove by company admins.
+- Email settings for the VPN (SMTP, sender, invitation template, test email).
+
 ### Added — v0.7.0
 - Per-company Microsoft apps: a company can use its own Entra app registration (tenant ID, app ID, encrypted
   secret) instead of approving CFBTEL's shared app; its sign-in, people search and access checks use that app only.

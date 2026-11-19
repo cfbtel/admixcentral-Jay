@@ -35,7 +35,7 @@
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-1">Settings</h3>
                 <p class="text-sm text-gray-500 mb-4">
-                    <strong>CFBTEL's shared Microsoft app</strong> (optional: companies can instead enter their own app on their VPN page).
+                    <strong>CFBTEL's shared Microsoft app</strong> (optional — with one-click setup below, each company gets its own app instead).
                     One multi-tenant app registration in CFBTEL's Microsoft Entra ("Accounts in any organizational directory").
                     Redirect URIs (Web): <code>{{ $redirects[0] }}</code> and <code>{{ $redirects[1] }}</code>.
                     API permissions (Microsoft Graph): delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code>, then grant admin consent.
@@ -49,6 +49,52 @@
                     <p class="text-xs text-gray-500">Only needed when the staff page is reached through a proxy (e.g. Coolify): its forwarded visitor address is then used for sign-in limits.</p>
                     <label class="{{ $label }}">Devices per person<input name="max_devices" value="{{ old('max_devices', $maxDevices) }}" inputmode="numeric" class="{{ $input }}"></label>
                     <button class="{{ $btn }}">Save</button>
+                </form>
+            </div>
+
+            <div class="{{ $card }}">
+                <h3 class="text-lg font-bold mb-1">One-click Microsoft 365 setup</h3>
+                <p class="text-sm text-gray-500 mb-3">
+                    Lets a company connect with one click: its Global Administrator signs in, and AdmixCentral creates the company's own "CFBTEL VPN" app in its Microsoft 365 with all permissions approved.
+                    It needs one app registration in <strong>CFBTEL's</strong> Microsoft Entra, created once:
+                </p>
+                <ol class="text-xs text-gray-600 dark:text-gray-300 list-decimal ml-5 space-y-1 mb-4 max-w-3xl">
+                    <li>Entra admin center → App registrations → New registration → name <em>CFBTEL VPN Setup</em>, <em>Accounts in any organizational directory (Multitenant)</em>.</li>
+                    <li>Redirect URI, platform <em>Web</em>: <code>{{ $setupRedirect }}</code></li>
+                    <li>API permissions → Microsoft Graph → <strong>Delegated</strong>: <code>Application.ReadWrite.All</code>, <code>AppRoleAssignment.ReadWrite.All</code>, <code>DelegatedPermissionGrant.ReadWrite.All</code> (plus the default <code>User.Read</code>). No application permissions, and no admin consent needed in CFBTEL's tenant.</li>
+                    <li>Certificates &amp; secrets → New client secret → paste its <em>Value</em> below, together with the Application (client) ID.</li>
+                </ol>
+                <p class="text-xs text-gray-500 mb-4">AdmixCentral only gets these permissions for the minutes of a setup, as the admin who signs in, and deletes the setup app from the company's tenant when done. The setup sign-in is never saved.</p>
+                <form method="POST" action="{{ route('vpn.settings.setup') }}" class="space-y-4 max-w-xl">@csrf
+                    <label class="{{ $label }}">Setup app — Application (client) ID<input name="setup_client_id" value="{{ old('setup_client_id', $setupClientId) }}" placeholder="00000000-0000-0000-0000-000000000000" class="{{ $input }}" autocomplete="off"></label>
+                    <label class="{{ $label }}">Setup app — client secret {{ $setupHasSecret ? '(saved — leave blank to keep it)' : '' }}<input name="setup_client_secret" type="password" class="{{ $input }}" autocomplete="new-password"></label>
+                    <button class="{{ $btn }}">Save</button>
+                    @if($setupClientId && $setupHasSecret)<span class="text-sm text-green-700 dark:text-green-400 ml-2">✓ Ready: companies show "Connect Microsoft 365 automatically".</span>@endif
+                </form>
+            </div>
+
+            <div class="{{ $card }}">
+                <h3 class="text-lg font-bold mb-1">Email (invitations and password links)</h3>
+                <p class="text-sm text-gray-500 mb-4">Used for email-and-password VPN accounts. Leave the SMTP server empty to use AdmixCentral's own mail setup.</p>
+                <form method="POST" action="{{ route('vpn.settings.email') }}" class="space-y-4 max-w-2xl">@csrf
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label class="{{ $label }} md:col-span-2">SMTP server<input name="smtp_host" value="{{ old('smtp_host', $mail['smtp_host']) }}" placeholder="smtp.office365.com" class="{{ $input }}" autocomplete="off"></label>
+                        <label class="{{ $label }}">Port<input name="smtp_port" value="{{ old('smtp_port', $mail['smtp_port']) }}" placeholder="587" inputmode="numeric" class="{{ $input }}"></label>
+                        <label class="{{ $label }}">Encryption<select name="smtp_encryption" class="{{ $input }}">
+                            @foreach(['tls' => 'STARTTLS (587)', 'ssl' => 'SSL/TLS (465)', 'none' => 'None'] as $k => $l)<option value="{{ $k }}" @selected(old('smtp_encryption', $mail['smtp_encryption']) === $k)>{{ $l }}</option>@endforeach
+                        </select></label>
+                        <label class="{{ $label }}">Username<input name="smtp_username" value="{{ old('smtp_username', $mail['smtp_username']) }}" class="{{ $input }}" autocomplete="off"></label>
+                        <label class="{{ $label }}">Password {{ $mail['has_password'] ? '(saved — blank keeps it)' : '' }}<input name="smtp_password" type="password" class="{{ $input }}" autocomplete="new-password"></label>
+                        <label class="{{ $label }} md:col-span-2">From address<input name="mail_from_address" value="{{ old('mail_from_address', $mail['mail_from_address']) }}" placeholder="vpn@cfbtel.com" class="{{ $input }}"></label>
+                        <label class="{{ $label }}">From name<input name="mail_from_name" value="{{ old('mail_from_name', $mail['mail_from_name']) }}" placeholder="CFBTEL VPN" class="{{ $input }}"></label>
+                    </div>
+                    <label class="{{ $label }}">Invitation subject<input name="invite_subject" value="{{ old('invite_subject', $mail['invite_subject']) }}" class="{{ $input }}"></label>
+                    <label class="{{ $label }}">Invitation text<textarea name="invite_body" rows="10" class="{{ $input }} font-mono">{{ old('invite_body', $mail['invite_body']) }}</textarea></label>
+                    <p class="text-xs text-gray-500">Placeholders: <code>{name}</code> <code>{email}</code> <code>{company}</code> <code>{link}</code> (required) <code>{expires}</code> <code>{portal}</code>.</p>
+                    <button class="{{ $btn }}">Save email settings</button>
+                </form>
+                <form method="POST" action="{{ route('vpn.settings.email.test') }}" class="mt-3">@csrf
+                    <button class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-50">Send test email to {{ auth()->user()->email }}</button>
                 </form>
             </div>
         </div>

@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Crypt;
  */
 class CompanyVpnController extends Controller
 {
-    public function __construct(private VpnManager $vpn)
+    public function __construct(private VpnManager $vpn, private \App\Services\Vpn\VpnAccounts $accounts)
     {
     }
 
@@ -74,6 +74,8 @@ class CompanyVpnController extends Controller
                 $consentError = 'CFBTEL\'s shared Microsoft app isn\'t set up. Use this company\'s own Microsoft app below, or set up the shared app in VPN settings.';
             }
         }
+        $setupReady = \App\Services\Vpn\MicrosoftSetup::make()->configured();
+        $setupLink = $setupReady && $this->canManage($request, $company) ? MicrosoftSetupController::link($company, $this->actor($request)) : null;
         $sites = VpnSite::with('firewall')->where('company_id', $company->id)->get()->keyBy('firewall_id');
 
         return view('vpn.admin.company', [
@@ -89,6 +91,8 @@ class CompanyVpnController extends Controller
             'searchError' => $searchError,
             'consentUrl' => $consentUrl,
             'consentError' => $consentError,
+            'setupReady' => $setupReady,
+            'setupLink' => $setupLink,
             'canManage' => $this->canManage($request, $company),
             'portalUrl' => VpnSettings::portalUrl('/vpn'),
             'callbackUrl' => VpnSettings::portalUrl('/vpn/callback'),
@@ -116,8 +120,12 @@ class CompanyVpnController extends Controller
         if (!$u || !$u['enabled']) {
             return back()->with('error', 'That account doesn\'t exist or is disabled in this company\'s Microsoft 365.');
         }
+        if (VpnUser::where('auth_type', 'local')->where('upn', $u['upn'])->exists()) {
+            return back()->with('error', 'That email already has an email-and-password VPN account. Remove it first.');
+        }
         VpnUser::create([
             'company_id' => $company->id,
+            'auth_type' => 'microsoft',
             'ms_oid' => $oid,
             'upn' => $u['guest'] && $u['mail'] ? strtolower($u['mail']) : $u['upn'],
             'name' => $u['name'],
@@ -170,6 +178,12 @@ class CompanyVpnController extends Controller
 
         $vc->email_domains = $domains ? implode(',', $domains) : null;
         if ($ownApp) {
+            if ($vc->ms_client_id !== $client || $secret !== '') {
+                // Entered by hand: the one-click setup's details no longer describe this app/secret.
+                $vc->ms_app_object_id = $vc->ms_client_id === $client ? $vc->ms_app_object_id : null;
+                $vc->ms_secret_key_id = null;
+                $vc->ms_secret_expires_at = null;
+            }
             $vc->ms_tenant_id = $tenant;
             $vc->ms_client_id = $client;
             if ($secret !== '') {
@@ -197,9 +211,62 @@ class CompanyVpnController extends Controller
     {
         $this->authorizeManage($request, $company);
         $vc = VpnCompany::forCompany($company);
-        $vc->update(['ms_client_id' => null, 'ms_client_secret' => null]);
+        $vc->update(['ms_client_id' => null, 'ms_client_secret' => null, 'ms_app_object_id' => null, 'ms_secret_key_id' => null, 'ms_secret_expires_at' => null]);
         VpnAuditLog::record($company->id, $this->actor($request), 'microsoft_own_app_removed');
         return back()->with('success', 'The company\'s own Microsoft app was removed. Sign-in uses CFBTEL\'s shared app again (the company must approve it).');
+    }
+
+    // ---- email-and-password accounts (companies without Microsoft Entra) ----
+
+    public function inviteUser(Request $request, Company $company)
+    {
+        $this->authorizeManage($request, $company);
+        $name = trim((string) $request->input('name'));
+        $email = \App\Services\Vpn\VpnAccounts::cleanEmail($request->input('email'));
+        if ($name === '' || mb_strlen($name) > 120 || !$email) {
+            return back()->withErrors(['invite' => 'Enter the person\'s name and a valid email address.'])->withInput();
+        }
+        if (\App\Services\Vpn\VpnAccounts::emailTaken($email)) {
+            return back()->withErrors(['invite' => "{$email} already has VPN access."])->withInput();
+        }
+        try {
+            $this->accounts->invite($company, $name, $email, $this->actor($request));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('VPN: invitation email failed', ['error' => $e->getMessage()]);
+            return back()->with('warning', "{$name} was added, but the invitation email couldn't be sent: {$e->getMessage()} Check the email settings, then click Resend invite.");
+        }
+        return back()->with('success', "Invitation sent to {$email}. The link works for 7 days.");
+    }
+
+    public function updateUser(Request $request, Company $company, VpnUser $vpnUser)
+    {
+        $this->authorizeManage($request, $company);
+        abort_unless((int) $vpnUser->company_id === (int) $company->id && $vpnUser->isLocal(), 404);
+        $name = trim((string) $request->input('name'));
+        $email = \App\Services\Vpn\VpnAccounts::cleanEmail($request->input('email'));
+        if ($name === '' || mb_strlen($name) > 120 || !$email) {
+            return back()->withErrors(['edit' => 'Enter a name and a valid email address.']);
+        }
+        if (\App\Services\Vpn\VpnAccounts::emailTaken($email, $vpnUser->id)) {
+            return back()->withErrors(['edit' => "{$email} already has VPN access."]);
+        }
+        $changed = $email !== $vpnUser->upn;
+        $vpnUser->update(['name' => $name, 'upn' => $email]);
+        VpnAuditLog::record($company->id, $this->actor($request), "vpn_account_updated {$email}" . ($changed ? ' (email changed)' : ''));
+        return back()->with('success', "Saved {$name}." . ($changed ? ' They now sign in with the new email address.' : ''));
+    }
+
+    public function resendInvite(Request $request, Company $company, VpnUser $vpnUser)
+    {
+        $this->authorizeManage($request, $company);
+        abort_unless((int) $vpnUser->company_id === (int) $company->id && $vpnUser->isLocal(), 404);
+        try {
+            $this->accounts->sendLink($vpnUser, false);
+        } catch (\Throwable $e) {
+            return back()->with('error', "The email couldn't be sent: {$e->getMessage()}");
+        }
+        VpnAuditLog::record($company->id, $this->actor($request), "vpn_invite_resent {$vpnUser->upn}");
+        return back()->with('success', "A new link was sent to {$vpnUser->upn}" . ($vpnUser->password ? ' (their current password keeps working until they set a new one).' : '.'));
     }
 
     public function removeUser(Request $request, Company $company, VpnUser $vpnUser)
