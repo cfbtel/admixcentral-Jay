@@ -42,8 +42,8 @@ jobs:
       BROADCAST_CONNECTION: 'null'
       MAIL_MAILER: array
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@b2f833f7d1c070621af195c088d275c4cd60ef8f # 2.9.0
         with:
           php-version: '8.4'
           extensions: mbstring, intl, pdo_mysql, bcmath

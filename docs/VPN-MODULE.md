@@ -174,3 +174,12 @@ Point the name at this server, either way:
 * **What the portal touches:**
   - Firewall peers created here are named `cfbvpn-<device id>`.
   - Only such peers are ever removed. The sync also removes `cfbvpn-` peers AdmixCentral no longer knows about.
+
+## Releasing an update
+
+1. Add the changes to `CHANGELOG.md` under headings that end with the version, e.g. `### Added — v0.8.2`.
+2. Set `VERSION` to that version and push to `main`.
+
+The **Publish release** GitHub Action (`.github/workflows/publish-release.yml`) runs the VPN and mail tests, then
+creates the tag and the release with those notes. AdmixCentral's updater (Settings → System Updates) offers it from
+there. If the tests fail, nothing is published. An existing release is never changed.
