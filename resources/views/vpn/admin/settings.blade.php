@@ -35,6 +35,7 @@
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-1">Settings</h3>
                 <p class="text-sm text-gray-500 mb-4">
+                    <strong>CFBTEL's shared Microsoft app</strong> (optional: companies can instead enter their own app on their VPN page).
                     One multi-tenant app registration in CFBTEL's Microsoft Entra ("Accounts in any organizational directory").
                     Redirect URIs (Web): <code>{{ $redirects[0] }}</code> and <code>{{ $redirects[1] }}</code>.
                     API permissions (Microsoft Graph): delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code>, then grant admin consent.

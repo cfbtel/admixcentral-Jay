@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.7.0
+- Per-company Microsoft apps: a company can use its own Entra app registration (tenant ID, app ID, encrypted
+  secret) instead of approving CFBTEL's shared app; its sign-in, people search and access checks use that app only.
+- Work email first on the staff VPN page: the email domain picks the company and its Microsoft app (login hint).
+  Email domains are set per company and must be unique.
+
 ### Fixed — v0.6.1
 - Staff VPN page behind a reverse proxy (e.g. Coolify): sign-in limits use the visitor's address forwarded by the
   configured proxy IPs (VPN settings), only for that proxy on the portal host name.

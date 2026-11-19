@@ -88,19 +88,22 @@ class FakeMicrosoft extends Microsoft
 {
     public array $people = [];
     public bool $down = false;
+    public array $calls = [];
 
-    public function __construct()
+    public function __construct(public string $label = 'shared')
     {
         parent::__construct('11111111-2222-3333-4444-555555555555', 'secret');
     }
 
-    public function loginUrl(string $redirectUri): array
+    public function loginUrl(string $redirectUri, ?string $loginHint = null): array
     {
-        return ['url' => 'https://login.microsoftonline.com/fake?redirect_uri=' . urlencode($redirectUri), 'pending' => ['state' => 'st-' . bin2hex(random_bytes(4)), 'nonce' => 'n', 'verifier' => 'v']];
+        $this->calls[] = "login {$loginHint}";
+        return ['url' => "https://login.microsoftonline.com/{$this->label}?login_hint=" . urlencode((string) $loginHint), 'pending' => ['state' => 'st-' . bin2hex(random_bytes(4)), 'nonce' => 'n', 'verifier' => 'v']];
     }
 
     public function redeem(string $code, string $redirectUri, array $pending): array
     {
+        $this->calls[] = "redeem {$code}";
         $p = $this->people[$code] ?? throw new VpnException('bad code');
         return ['tid' => $p['tid'], 'oid' => $p['oid'], 'upn' => $p['upn'], 'name' => $p['name']];
     }
@@ -144,8 +147,11 @@ class VpnModuleTest extends TestCase
     private const ACME_TID = '22222222-2222-2222-2222-222222222222';
     private const PORTAL = 'http://vpn.test';
 
+    private const BETA_TID = '55555555-5555-5555-5555-555555555555';
+
     private FakeWireGuard $fw;
     private FakeMicrosoft $ms;
+    private FakeMicrosoft $msOwn; // Beta's own app in Beta's own Entra
 
     protected function setUp(): void
     {
@@ -161,7 +167,12 @@ class VpnModuleTest extends TestCase
             'carl' => ['tid' => self::ACME_TID, 'oid' => 'aaaaaaaa-0000-0000-0000-000000000003', 'upn' => 'carl@acme.com', 'name' => 'Carl'],
             'eve' => ['tid' => '44444444-4444-4444-4444-444444444444', 'oid' => 'eeeeeeee-0000-0000-0000-000000000001', 'upn' => 'eve@evil.com', 'name' => 'Eve'],
         ];
-        $this->app->instance(Microsoft::class, $this->ms);
+        $this->msOwn = new FakeMicrosoft('beta-own-app');
+        $this->msOwn->people = [
+            'bea' => ['tid' => self::BETA_TID, 'oid' => 'bbbbbbbb-0000-0000-0000-000000000001', 'upn' => 'bea@beta.com', 'name' => 'Bea'],
+            'ann' => $this->ms->people['ann'], // someone from another tenant using Beta's app
+        ];
+        Microsoft::$factory = fn ($vc) => $vc && $vc->hasOwnApp() ? $this->msOwn : $this->ms;
         VpnManager::resolveDriversWith(fn () => $this->fw);
         VpnSettings::set('portal_host', 'vpn.test');
         VpnSettings::set('max_devices', '2');
@@ -170,6 +181,7 @@ class VpnModuleTest extends TestCase
     protected function tearDown(): void
     {
         VpnManager::resolveDriversWith(null);
+        Microsoft::$factory = null;
         parent::tearDown();
     }
 
@@ -215,11 +227,12 @@ class VpnModuleTest extends TestCase
         $this->console($by)->post("/companies/{$company->id}/vpn/users", ['oid' => $this->ms->people[$who]['oid']])->assertRedirect();
     }
 
-    /** Sign in on the staff page as a Microsoft 365 user. */
-    private function staffSignIn(string $who)
+    /** Sign in on the staff page as a Microsoft 365 user (work email first, then Microsoft). */
+    private function staffSignIn(string $who, ?string $email = null)
     {
         auth()->logout();
-        $this->get(self::PORTAL . '/vpn/login')->assertRedirect();
+        $email ??= ($this->ms->people[$who] ?? $this->msOwn->people[$who])['upn'];
+        $this->post(self::PORTAL . '/vpn/login', ['email' => $email])->assertRedirect();
         $state = session('vpn_portal_login')['state'];
         return $this->get(self::PORTAL . '/vpn/callback?' . http_build_query(['code' => $who, 'state' => $state]));
     }
@@ -233,7 +246,7 @@ class VpnModuleTest extends TestCase
     {
         $this->world();
         $this->get(self::PORTAL . '/')->assertRedirect('https://vpn.test/vpn');
-        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Sign in with Microsoft');
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Continue with Microsoft')->assertSee('Work email');
         $this->get(self::PORTAL . '/login')->assertNotFound();
         $this->get(self::PORTAL . '/dashboard')->assertNotFound();
         $this->get(self::PORTAL . '/vpn-admin/settings')->assertNotFound();
@@ -462,6 +475,47 @@ class VpnModuleTest extends TestCase
         @unlink(storage_path('framework/opcache-version'));
         $this->get(self::PORTAL . '/vpn')->assertOk();
         $this->get(self::PORTAL . '/vpn')->assertOk();
+    }
+
+    public function test_a_company_can_use_its_own_microsoft_app(): void
+    {
+        $w = $this->world();
+        $page = $this->console($w['betaAdmin'])->get("/companies/{$w['beta']->id}/vpn")->assertOk()->assertSee('Use the company');
+        // Beta's admin enters Beta's own app registration and email domain.
+        $this->console($w['betaAdmin'])->post("/companies/{$w['beta']->id}/vpn/microsoft", [
+            'email_domains' => '@Beta.com, beta.us', 'ms_tenant_id' => self::BETA_TID,
+            'ms_client_id' => 'cccccccc-0000-0000-0000-000000000001', 'ms_client_secret' => 'beta-secret',
+        ])->assertRedirect()->assertSessionHas('success');
+        $vc = VpnCompany::where('company_id', $w['beta']->id)->first();
+        $this->assertTrue($vc->hasOwnApp());
+        $this->assertSame(['beta.com', 'beta.us'], $vc->domains());
+        $this->assertSame('beta-secret', $vc->ms_client_secret);
+        $this->assertStringNotContainsString('beta-secret', (string) $vc->getRawOriginal('ms_client_secret'));
+
+        // People are picked from Beta's tenant through Beta's app.
+        $this->console($w['betaAdmin'])->post("/companies/{$w['beta']->id}/vpn/users", ['oid' => $this->msOwn->people['bea']['oid']])->assertRedirect();
+        $this->assertSame('bea@beta.com', VpnUser::where('company_id', $w['beta']->id)->value('upn'));
+
+        // Staff sign-in: the @beta.com email sends Bea through Beta's own app.
+        $this->staffSignIn('bea', 'bea@beta.com')->assertRedirect('https://vpn.test/vpn');
+        $this->assertSame(['login bea@beta.com', 'redeem bea'], $this->msOwn->calls);
+        $this->assertSame([], array_values(array_filter($this->ms->calls, fn ($c) => str_contains($c, 'bea'))));
+
+        // A token from another tenant through Beta's app is refused.
+        $this->staffSignIn('ann', 'ann@beta.com')->assertForbidden();
+    }
+
+    public function test_email_domains_are_unique_and_unknown_domains_use_the_shared_app(): void
+    {
+        $w = $this->world();
+        $this->console($w['global'])->post("/companies/{$w['acme']->id}/vpn/microsoft", ['email_domains' => 'acme.com'])->assertSessionHas('success');
+        $this->console($w['global'])->post("/companies/{$w['beta']->id}/vpn/microsoft", ['email_domains' => 'ACME.com'])->assertSessionHasErrors('email_domains');
+        $this->console($w['global'])->post("/companies/{$w['beta']->id}/vpn/microsoft", ['email_domains' => 'not a domain'])->assertSessionHasErrors('email_domains');
+        $this->console($w['global'])->post("/companies/{$w['beta']->id}/vpn/microsoft", ['ms_client_id' => 'cccccccc-0000-0000-0000-000000000001'])->assertSessionHasErrors('ms_client_id');
+        auth()->logout();
+        $this->post(self::PORTAL . '/vpn/login', ['email' => 'someone@unknown.example'])->assertRedirect();
+        $this->assertSame(['login someone@unknown.example'], $this->ms->calls);
+        $this->post(self::PORTAL . '/vpn/login', ['email' => 'not-an-email'])->assertRedirect('https://vpn.test/vpn');
     }
 
     public function test_wireguard_helpers(): void

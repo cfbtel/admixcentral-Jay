@@ -36,10 +36,6 @@ class PortalController extends Controller
     {
     }
 
-    private function microsoft(): Microsoft
-    {
-        return app(Microsoft::class);
-    }
 
     /** The signed-in VPN person, re-read from the database (access may have been removed since). */
     private function person(Request $request): ?VpnUser
@@ -98,17 +94,24 @@ class PortalController extends Controller
         return response()->view('vpn.portal.help', ['platforms' => self::PLATFORMS]);
     }
 
+    /** Step 1: the work email picks the company (by its email domains) and so its Microsoft app. */
     public function login(Request $request)
     {
-        if ($r = $this->onPortalHost($request)) {
-            return $r;
+        if ($request->isMethod('GET')) {
+            return redirect('/vpn');
         }
+        $email = strtolower(trim((string) $request->input('email')));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return redirect('/vpn')->with('vpn_error', 'Enter your work email address.');
+        }
+        $vc = VpnCompany::forEmail($email);
+        $own = $vc && $vc->hasOwnApp() ? $vc : null;
         try {
-            $login = $this->microsoft()->loginUrl(VpnSettings::portalUrl('/vpn/callback'));
+            $login = Microsoft::for($own)->loginUrl(VpnSettings::portalUrl('/vpn/callback'), $email);
         } catch (VpnException $e) {
-            return $this->message('Not available yet', $e->getMessage(), 503);
+            return $this->message('Not available yet', 'Your organization isn\'t set up for CFBTEL VPN yet. Contact your IT admin or CFBTEL support.', 503);
         }
-        $request->session()->put(self::PENDING, $login['pending'] + ['exp' => time() + 600]);
+        $request->session()->put(self::PENDING, $login['pending'] + ['exp' => time() + 600, 'company' => $own?->id]);
         return redirect()->away($login['url']);
     }
 
@@ -121,13 +124,18 @@ class PortalController extends Controller
         if (!is_array($pending) || ($pending['exp'] ?? 0) < time() || !hash_equals((string) $pending['state'], (string) $request->query('state', ''))) {
             return redirect('/vpn')->with('vpn_error', 'Your sign-in expired. Please try again.');
         }
+        // Redeem with the same app the sign-in started with (the company's own app, or CFBTEL's shared app).
+        $own = !empty($pending['company']) ? VpnCompany::find($pending['company']) : null;
         try {
-            $id = $this->microsoft()->redeem((string) $request->query('code', ''), VpnSettings::portalUrl('/vpn/callback'), $pending);
+            $id = Microsoft::for($own)->redeem((string) $request->query('code', ''), VpnSettings::portalUrl('/vpn/callback'), $pending);
         } catch (\Throwable $e) {
             Log::warning('VPN portal: Microsoft sign-in failed', ['error' => $e->getMessage()]);
             return redirect('/vpn')->with('vpn_error', 'Microsoft sign-in failed. Please try again.');
         }
-        $vc = VpnCompany::where('ms_tenant_id', $id['tid'])->first();
+        $vc = $own ?? VpnCompany::where('ms_tenant_id', $id['tid'])->first();
+        if ($vc && $vc->ms_tenant_id !== $id['tid']) {
+            $vc = null; // signed in to another tenant than the company's own app
+        }
         $user = $vc ? VpnUser::where('company_id', $vc->company_id)->where('ms_oid', $id['oid'])->first() : null;
         if (!$user) {
             Log::notice('VPN portal: sign-in refused', ['upn' => $id['upn'], 'tid' => $id['tid']]);
@@ -228,7 +236,7 @@ class PortalController extends Controller
         if ($vc->ms_tenant_id && $vc->ms_tenant_id !== $tenant) {
             return $this->message('Different tenant', 'This company is already linked to another Microsoft 365 tenant. Contact CFBTEL.', 409);
         }
-        $vc->update(['ms_tenant_id' => $tenant, 'ms_tenant_name' => $this->microsoft()->tenantName($tenant)]);
+        $vc->update(['ms_tenant_id' => $tenant, 'ms_tenant_name' => Microsoft::for(null)->tenantName($tenant)]);
         VpnAuditLog::record($company->id, 'microsoft-consent', "m365_connected {$tenant}");
         return $this->message('Microsoft 365 connected', "{$company->name} is connected to CFBTEL VPN. You can close this page.");
     }

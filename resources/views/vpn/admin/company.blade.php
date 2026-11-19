@@ -31,16 +31,51 @@
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-3">1. Microsoft 365</h3>
                 @if($vc->ms_tenant_id)
-                    <p class="text-sm">✓ Connected to <strong>{{ $vc->ms_tenant_name ?? $vc->ms_tenant_id }}</strong> <span class="text-gray-500">({{ $vc->ms_tenant_id }})</span></p>
+                    <p class="text-sm">✓ Connected to <strong>{{ $vc->ms_tenant_name ?? $vc->ms_tenant_id }}</strong> <span class="text-gray-500">({{ $vc->ms_tenant_id }})</span>
+                        · {{ $vc->hasOwnApp() ? 'the company\'s own Microsoft app (' . $vc->ms_client_id . ')' : 'CFBTEL\'s shared app' }}</p>
                 @elseif($consentError)
-                    <p class="text-sm text-red-600 dark:text-red-400">{{ $consentError }} @if(auth()->user()->isGlobalAdmin())<a class="underline" href="{{ route('vpn.settings') }}">VPN settings</a>@endif</p>
+                    <p class="text-sm text-yellow-700 dark:text-yellow-300">{{ $consentError }}</p>
                 @else
-                    <p class="text-sm mb-3">Not connected. A Global Administrator of this company's Microsoft 365 approves the CFBTEL VPN app once (sign-in, and reading users so you can pick people).</p>
+                    <p class="text-sm mb-3">Not connected. Either a Global Administrator of this company's Microsoft 365 approves CFBTEL's VPN app once, or you enter the company's own Microsoft app below.</p>
                     @if($canManage)
-                        <a href="{{ $consentUrl }}" class="{{ $btn }}">Connect Microsoft 365</a>
+                        <a href="{{ $consentUrl }}" class="{{ $btn }}">Approve CFBTEL's app</a>
                         <label class="block mt-3 text-xs text-gray-500">Or send this link to the company's Microsoft 365 admin (valid 7 days)
                             <input readonly value="{{ $consentUrl }}" class="mt-1 w-full {{ $input }}" onclick="this.select()">
                         </label>
+                    @endif
+                @endif
+
+                @if($canManage)
+                    <form method="POST" action="{{ route('vpn.microsoft.save', $company) }}" class="mt-5 space-y-3 max-w-2xl">@csrf
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Work email domains
+                            <input name="email_domains" value="{{ old('email_domains', implode(', ', $vc->domains())) }}" placeholder="acme.com, acme.us" class="mt-1 w-full {{ $input }}">
+                        </label>
+                        <p class="text-xs text-gray-500">Staff type their work email on the VPN page; its domain picks this company. Required when the company uses its own Microsoft app.</p>
+
+                        <details class="mt-2" @if($vc->hasOwnApp() || $errors->hasAny(['ms_tenant_id', 'ms_client_id', 'ms_client_secret'])) open @endif>
+                            <summary class="cursor-pointer text-sm font-semibold">Use the company's own Microsoft app (its own Entra)</summary>
+                            <div class="mt-3 space-y-3">
+                                <ol class="text-xs text-gray-600 dark:text-gray-300 list-decimal ml-5 space-y-1">
+                                    <li>In <strong>the company's</strong> Entra admin center: App registrations → New registration → name <em>CFBTEL VPN</em>, <em>Accounts in this organizational directory only</em>.</li>
+                                    <li>Redirect URI (Web): <code>{{ $callbackUrl }}</code></li>
+                                    <li>API permissions → Microsoft Graph: delegated <code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code>; application <code>User.Read.All</code> → <strong>Grant admin consent</strong>.</li>
+                                    <li>Certificates &amp; secrets → New client secret; copy its <em>Value</em>. Note its expiry and enter a new one here before it ends.</li>
+                                </ol>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Directory (tenant) ID
+                                    <input name="ms_tenant_id" value="{{ old('ms_tenant_id', $vc->hasOwnApp() ? $vc->ms_tenant_id : '') }}" placeholder="00000000-0000-0000-0000-000000000000" class="mt-1 w-full {{ $input }}" autocomplete="off">
+                                </label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application (client) ID
+                                    <input name="ms_client_id" value="{{ old('ms_client_id', $vc->ms_client_id) }}" placeholder="00000000-0000-0000-0000-000000000000" class="mt-1 w-full {{ $input }}" autocomplete="off">
+                                </label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Client secret {{ $vc->hasOwnApp() ? '(saved — leave blank to keep it)' : '' }}
+                                    <input name="ms_client_secret" type="password" class="mt-1 w-full {{ $input }}" autocomplete="new-password">
+                                </label>
+                            </div>
+                        </details>
+                        <button class="{{ $btn2 }}">Save</button>
+                    </form>
+                    @if($vc->hasOwnApp())
+                        <form method="POST" action="{{ route('vpn.microsoft.remove', $company) }}" class="mt-2" onsubmit="return confirm('Stop using the company\'s own Microsoft app?')">@csrf<button class="{{ $btnRed }}">Remove own app</button></form>
                     @endif
                 @endif
             </div>

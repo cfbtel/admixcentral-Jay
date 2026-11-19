@@ -850,7 +850,7 @@ require __DIR__ . '/auth.php';
 Route::prefix('vpn')->name('vpn.portal.')->group(function () {
     Route::get('/', [App\Http\Controllers\Vpn\PortalController::class, 'index'])->name('index');
     Route::get('/help', [App\Http\Controllers\Vpn\PortalController::class, 'help'])->name('help');
-    Route::get('/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:vpn-portal')->name('login');
+    Route::match(['get', 'post'], '/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:vpn-portal')->name('login');
     Route::get('/callback', [App\Http\Controllers\Vpn\PortalController::class, 'callback'])->middleware('throttle:vpn-portal')->name('callback');
     Route::get('/consent/callback', [App\Http\Controllers\Vpn\PortalController::class, 'consentCallback'])->middleware('throttle:vpn-portal')->name('consent');
     Route::post('/logout', [App\Http\Controllers\Vpn\PortalController::class, 'logout'])->name('logout');
@@ -867,6 +867,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::prefix('companies/{company}/vpn')->middleware(App\Http\Middleware\EnsureTenantScope::class)->group(function () {
         Route::get('/', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'show'])->name('vpn.company');
+        Route::post('/microsoft', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveMicrosoft'])->middleware('deny.readonly')->name('vpn.microsoft.save');
+        Route::post('/microsoft/own-app/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeOwnApp'])->middleware('deny.readonly')->name('vpn.microsoft.remove');
         Route::post('/users', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'addUser'])->middleware('deny.readonly')->name('vpn.users.store');
         Route::post('/users/{vpnUser}/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeUser'])->middleware('deny.readonly')->name('vpn.users.remove');
         Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeDevice'])->middleware('deny.readonly')->name('vpn.devices.remove');

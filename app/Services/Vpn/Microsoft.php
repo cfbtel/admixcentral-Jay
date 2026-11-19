@@ -2,6 +2,7 @@
 
 namespace App\Services\Vpn;
 
+use App\Models\Vpn\VpnCompany;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use phpseclib3\Crypt\PublicKeyLoader;
@@ -21,12 +22,44 @@ class Microsoft
     public const GRAPH = 'https://graph.microsoft.com';
     private const GUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 
+    /** Tests swap in a fake. @var (\Closure(?VpnCompany): Microsoft)|null */
+    public static ?\Closure $factory = null;
+
+    /**
+     * @param string|null $tenant set for a company's own (single-tenant) app: sign-in goes to that tenant only;
+     *                            null for CFBTEL's shared multi-tenant app (/organizations).
+     */
     public function __construct(
         private ?string $clientId = null,
         private ?string $clientSecret = null,
+        private ?string $tenant = null,
     ) {
-        $this->clientId ??= VpnSettings::clientId();
-        $this->clientSecret ??= VpnSettings::clientSecret();
+        if ($this->clientId === null && $this->clientSecret === null && $this->tenant === null) {
+            $this->clientId = VpnSettings::clientId();
+            $this->clientSecret = VpnSettings::clientSecret();
+        }
+    }
+
+    /** The Microsoft app to use for a company: its own app when it has one, otherwise CFBTEL's shared app. */
+    public static function for(?VpnCompany $vc): self
+    {
+        if (self::$factory) {
+            return (self::$factory)($vc);
+        }
+        if ($vc && $vc->hasOwnApp()) {
+            return new self($vc->ms_client_id, $vc->ms_client_secret, $vc->ms_tenant_id);
+        }
+        return new self();
+    }
+
+    public function usesOwnApp(): bool
+    {
+        return $this->tenant !== null;
+    }
+
+    private function authorityPath(): string
+    {
+        return $this->tenant ? rawurlencode($this->tenant) : 'organizations';
     }
 
     public static function isGuid(?string $v): bool
@@ -52,7 +85,7 @@ class Microsoft
     }
 
     /** @return array{url: string, pending: array{state: string, nonce: string, verifier: string}} */
-    public function loginUrl(string $redirectUri): array
+    public function loginUrl(string $redirectUri, ?string $loginHint = null): array
     {
         $this->requireApp();
         $pending = ['state' => self::b64u(random_bytes(18)), 'nonce' => self::b64u(random_bytes(18)), 'verifier' => self::b64u(random_bytes(32))];
@@ -66,16 +99,15 @@ class Microsoft
             'nonce' => $pending['nonce'],
             'code_challenge' => self::b64u(hash('sha256', $pending['verifier'], true)),
             'code_challenge_method' => 'S256',
-            'prompt' => 'select_account',
-        ]);
-        return ['url' => self::AUTHORITY . "/organizations/oauth2/v2.0/authorize?{$query}", 'pending' => $pending];
+        ] + ($loginHint ? ['login_hint' => $loginHint] : ['prompt' => 'select_account']));
+        return ['url' => self::AUTHORITY . "/{$this->authorityPath()}/oauth2/v2.0/authorize?{$query}", 'pending' => $pending];
     }
 
     /** Exchange the code and return the verified identity. @return array{tid: string, oid: string, upn: string, name: string} */
     public function redeem(string $code, string $redirectUri, array $pending): array
     {
         $this->requireApp();
-        $res = Http::asForm()->timeout(20)->post(self::AUTHORITY . '/organizations/oauth2/v2.0/token', [
+        $res = Http::asForm()->timeout(20)->post(self::AUTHORITY . "/{$this->authorityPath()}/oauth2/v2.0/token", [
             'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
             'grant_type' => 'authorization_code',
@@ -120,6 +152,9 @@ class Microsoft
         if (!self::isGuid($tid) || ($claims['iss'] ?? '') !== self::AUTHORITY . "/{$tid}/v2.0") {
             throw new VpnException('The sign-in token\'s issuer doesn\'t match its tenant.');
         }
+        if ($this->tenant && $tid !== strtolower($this->tenant)) {
+            throw new VpnException('The sign-in token is from another tenant than this app\'s.');
+        }
         if (!hash_equals($nonce, (string) ($claims['nonce'] ?? ''))) {
             throw new VpnException('The sign-in token doesn\'t belong to this sign-in.');
         }
@@ -163,7 +198,7 @@ class Microsoft
     private function appToken(string $tenantId): string
     {
         $this->requireApp();
-        $cacheKey = 'vpn_ms_token:' . $tenantId;
+        $cacheKey = 'vpn_ms_token:' . sha1($this->clientId . '|' . $tenantId);
         if ($token = Cache::get($cacheKey)) {
             return $token;
         }

@@ -19,7 +19,30 @@ Self-service WireGuard remote access for each company managed in AdmixCentral.
 Supported firewalls: **pfSense** (REST API package v2) and **OPNsense** (24.x or later, core WireGuard and Firewall →
 Automation).
 
-## 1. Microsoft app (once, in CFBTEL's Microsoft Entra)
+## 1. Microsoft 365 per company
+
+Each company signs in with **its own** Microsoft 365. There are two ways to connect it, chosen per company on its
+VPN page:
+
+* **CFBTEL's shared app (default):** a Global Administrator of the company approves CFBTEL's multi-tenant app once
+  (*Approve CFBTEL's app*, or send the link). Only that tenant's accounts can then sign in for the company.
+* **The company's own app (optional):** create an app registration in **the company's own** Entra and enter its
+  Directory (tenant) ID, Application (client) ID and client secret on the company's VPN page. The secret is
+  encrypted.
+  * Account type: *this organizational directory only*.
+  * Redirect URI (Web): `https://<portal host>/vpn/callback`.
+  * Graph permissions: delegated `openid`, `profile`, `email`, `User.Read`; application `User.Read.All` → **Grant
+    admin consent**.
+  * The company's staff sign-in, people search and access checks then use only that app. Renew the secret on the
+    VPN page before it expires.
+
+**Work email domains:** list each company's email domains (e.g. `acme.com`) on its VPN page.
+- The staff page asks for the work email first, and its domain picks the company and its app. Microsoft then opens
+  with that email filled in.
+- Domains are required for companies with their own app, and must be unique across companies.
+- Unknown domains use CFBTEL's shared app.
+
+## 1a. CFBTEL's shared Microsoft app (once, in CFBTEL's Microsoft Entra; optional if every company uses its own)
 
 Entra admin center → **App registrations → New registration**:
 - Name **CFBTEL VPN**.
@@ -51,8 +74,10 @@ Point the name at this server, either way:
 ## 3. Onboarding a company
 
 1. **Companies → company → VPN Access.**
-2. **Connect Microsoft 365.** Click it if you are their admin, or send the link (valid 7 days) to the company's Global
-   Administrator. They approve once.
+2. **Microsoft 365:**
+   - Either click **Approve CFBTEL's app** (or send the link, valid 7 days, to the company's Global Administrator),
+     or enter the company's own app.
+   - Enter the company's work email domains.
 3. **Firewalls → Enable VPN → Create WireGuard.**
    - Choose the LAN users may reach, the WAN, the UDP port, the VPN network and the public name or IP.
    - AdmixCentral creates:

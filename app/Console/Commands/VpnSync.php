@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Company;
 use App\Models\Vpn\VpnCompany;
 use App\Models\Vpn\VpnSite;
-use App\Services\Vpn\Microsoft;
 use App\Services\Vpn\VpnManager;
 use Illuminate\Console\Command;
 
@@ -18,11 +17,10 @@ class VpnSync extends Command
     public function handle(VpnManager $vpn): int
     {
         $ids = VpnCompany::whereNotNull('ms_tenant_id')->pluck('company_id')->merge(VpnSite::pluck('company_id'))->unique();
-        $ms = app(Microsoft::class);
         $total = 0;
         foreach (Company::whereIn('id', $ids)->get() as $company) {
             try {
-                $r = $vpn->sync($company, $ms);
+                $r = $vpn->sync($company);
                 $total += $r['removed'];
                 $this->line("{$company->name}: {$r['removed']} removed" . ($r['skipped'] ? ' (Microsoft 365 unavailable: account check skipped)' : ''));
             } catch (\Throwable $e) {

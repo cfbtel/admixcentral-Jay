@@ -157,9 +157,11 @@ class VpnManager
      *
      * @return array{removed: int, skipped: bool}
      */
-    public function sync(Company $company, Microsoft $ms): array
+    public function sync(Company $company, ?Microsoft $ms = null): array
     {
-        $tenant = VpnCompany::where('company_id', $company->id)->value('ms_tenant_id');
+        $vc = VpnCompany::where('company_id', $company->id)->first();
+        $tenant = $vc?->ms_tenant_id;
+        $ms ??= Microsoft::for($vc);
         $skipped = false;
         if ($tenant) {
             $users = VpnUser::where('company_id', $company->id)->get();

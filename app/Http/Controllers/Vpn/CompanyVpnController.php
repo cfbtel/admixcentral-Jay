@@ -28,9 +28,10 @@ class CompanyVpnController extends Controller
     {
     }
 
-    private function microsoft(): Microsoft
+    /** The company's own Microsoft app if it has one, otherwise CFBTEL's shared app. */
+    private function microsoft(VpnCompany $vc): Microsoft
     {
-        return app(Microsoft::class);
+        return Microsoft::for($vc);
     }
 
     private function canManage(Request $request, Company $company): bool
@@ -58,18 +59,20 @@ class CompanyVpnController extends Controller
         if ($vc->ms_tenant_id && ($q !== '' || $request->has('search')) && $this->canManage($request, $company)) {
             try {
                 $have = VpnUser::where('company_id', $company->id)->pluck('ms_oid')->flip();
-                $results = collect($this->microsoft()->searchUsers($vc->ms_tenant_id, $q))->filter(fn ($u) => $u['enabled'] && !isset($have[$u['oid']]))->values();
+                $results = collect($this->microsoft($vc)->searchUsers($vc->ms_tenant_id, $q))->filter(fn ($u) => $u['enabled'] && !isset($have[$u['oid']]))->values();
             } catch (\Throwable $e) {
                 $searchError = $e instanceof VpnException ? $e->getMessage() : 'Couldn\'t search Microsoft 365.';
             }
         }
         $consentUrl = null;
         $consentError = null;
-        try {
-            $state = Crypt::encryptString(json_encode(['c' => $company->id, 'exp' => time() + 7 * 86400]));
-            $consentUrl = $this->microsoft()->adminConsentUrl(VpnSettings::portalUrl('/vpn/consent/callback'), $state);
-        } catch (VpnException $e) {
-            $consentError = $e->getMessage();
+        if (!$vc->hasOwnApp()) {
+            try {
+                $state = Crypt::encryptString(json_encode(['c' => $company->id, 'exp' => time() + 7 * 86400]));
+                $consentUrl = Microsoft::for(null)->adminConsentUrl(VpnSettings::portalUrl('/vpn/consent/callback'), $state);
+            } catch (VpnException $e) {
+                $consentError = 'CFBTEL\'s shared Microsoft app isn\'t set up. Use this company\'s own Microsoft app below, or set up the shared app in VPN settings.';
+            }
         }
         $sites = VpnSite::with('firewall')->where('company_id', $company->id)->get()->keyBy('firewall_id');
 
@@ -88,6 +91,7 @@ class CompanyVpnController extends Controller
             'consentError' => $consentError,
             'canManage' => $this->canManage($request, $company),
             'portalUrl' => VpnSettings::portalUrl('/vpn'),
+            'callbackUrl' => VpnSettings::portalUrl('/vpn/callback'),
         ]);
     }
 
@@ -105,7 +109,7 @@ class CompanyVpnController extends Controller
             return back()->with('error', 'That person already has VPN access.');
         }
         try {
-            $u = $this->microsoft()->userStatus($vc->ms_tenant_id, $oid); // name and UPN come from Microsoft, never from the form
+            $u = $this->microsoft($vc)->userStatus($vc->ms_tenant_id, $oid); // name and UPN come from Microsoft, never from the form
         } catch (\Throwable $e) {
             return back()->with('error', $e instanceof VpnException ? $e->getMessage() : 'Couldn\'t reach Microsoft 365.');
         }
@@ -121,6 +125,81 @@ class CompanyVpnController extends Controller
         ]);
         VpnAuditLog::record($company->id, $this->actor($request), "vpn_access_given {$u['upn']}");
         return redirect()->route('vpn.company', $company)->with('success', "{$u['name']} can now sign in at the VPN page and add devices.");
+    }
+
+    /** Email domains (all companies) and, optionally, the company's own Microsoft app. */
+    public function saveMicrosoft(Request $request, Company $company)
+    {
+        $this->authorizeManage($request, $company);
+        $vc = VpnCompany::forCompany($company);
+        $v = $request->validate([
+            'email_domains' => ['nullable', 'string', 'max:500'],
+            'ms_tenant_id' => ['nullable', 'string', 'max:36'],
+            'ms_client_id' => ['nullable', 'string', 'max:36'],
+            'ms_client_secret' => ['nullable', 'string', 'max:300'],
+        ]);
+        $domains = array_values(array_unique(array_filter(array_map(fn ($d) => strtolower(trim(ltrim(trim($d), '@'))), preg_split('/[\s,;]+/', (string) ($v['email_domains'] ?? ''))))));
+        foreach ($domains as $d) {
+            if (!preg_match('/^(?=.{3,253}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/', $d)) {
+                return back()->withErrors(['email_domains' => "“{$d}” isn't a domain name."])->withInput();
+            }
+            $other = VpnCompany::where('id', '!=', $vc->id)->get()->first(fn ($o) => in_array($d, $o->domains(), true));
+            if ($other) {
+                return back()->withErrors(['email_domains' => "{$d} is already used by another company."])->withInput();
+            }
+        }
+
+        $tenant = strtolower(trim((string) ($v['ms_tenant_id'] ?? '')));
+        $client = strtolower(trim((string) ($v['ms_client_id'] ?? '')));
+        $secret = (string) ($v['ms_client_secret'] ?? '');
+        $ownApp = $tenant !== '' || $client !== '' || $secret !== '';
+        if ($ownApp) {
+            if (!Microsoft::isGuid($tenant) || !Microsoft::isGuid($client)) {
+                return back()->withErrors(['ms_client_id' => 'Enter the Directory (tenant) ID and the Application (client) ID from the company\'s app registration.'])->withInput();
+            }
+            if ($secret === '' && !($vc->hasOwnApp() && $vc->ms_client_id === $client)) {
+                return back()->withErrors(['ms_client_secret' => 'Enter the client secret.'])->withInput();
+            }
+            if (VpnCompany::where('ms_tenant_id', $tenant)->where('id', '!=', $vc->id)->exists()) {
+                return back()->withErrors(['ms_tenant_id' => 'This Microsoft 365 tenant is already linked to another company.'])->withInput();
+            }
+            if ($vc->ms_tenant_id && $vc->ms_tenant_id !== $tenant && VpnUser::where('company_id', $company->id)->exists()) {
+                return back()->withErrors(['ms_tenant_id' => 'This company is linked to another tenant and already has VPN people. Remove them first.'])->withInput();
+            }
+        }
+
+        $vc->email_domains = $domains ? implode(',', $domains) : null;
+        if ($ownApp) {
+            $vc->ms_tenant_id = $tenant;
+            $vc->ms_client_id = $client;
+            if ($secret !== '') {
+                $vc->ms_client_secret = $secret;
+            }
+        }
+        $vc->save();
+        VpnAuditLog::record($company->id, $this->actor($request), 'microsoft_settings ' . ($ownApp ? "own app {$client} in {$tenant}" : 'shared app') . ($domains ? ' domains ' . implode(',', $domains) : ''));
+
+        if ($ownApp) {
+            // Check the app can read this tenant's users (User.Read.All with admin consent).
+            try {
+                $ms = Microsoft::for($vc->fresh());
+                $ms->searchUsers($tenant, '');
+                $vc->update(['ms_tenant_name' => $ms->tenantName($tenant)]);
+            } catch (\Throwable $e) {
+                return back()->with('warning', 'Saved, but Microsoft refused the app: ' . $e->getMessage() . ' Check the secret, the User.Read.All application permission and "Grant admin consent".');
+            }
+            return back()->with('success', 'Saved. Staff of this company now sign in through its own Microsoft app.');
+        }
+        return back()->with('success', 'Saved.');
+    }
+
+    public function removeOwnApp(Request $request, Company $company)
+    {
+        $this->authorizeManage($request, $company);
+        $vc = VpnCompany::forCompany($company);
+        $vc->update(['ms_client_id' => null, 'ms_client_secret' => null]);
+        VpnAuditLog::record($company->id, $this->actor($request), 'microsoft_own_app_removed');
+        return back()->with('success', 'The company\'s own Microsoft app was removed. Sign-in uses CFBTEL\'s shared app again (the company must approve it).');
     }
 
     public function removeUser(Request $request, Company $company, VpnUser $vpnUser)
