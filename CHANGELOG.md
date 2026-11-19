@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.6.1
+- Staff VPN page behind a reverse proxy (e.g. Coolify): sign-in limits use the visitor's address forwarded by the
+  configured proxy IPs (VPN settings), only for that proxy on the portal host name.
+- After an in-app update the first web request clears PHP-FPM's opcode cache once, so workers can't keep running
+  the previous release (stale routes caused "Route not defined" errors until PHP-FPM was restarted).
+
 ### Added — VPN Access (WireGuard + Microsoft 365)
 - Per-company self-service WireGuard remote access for pfSense and OPNsense: CFBTEL admins connect a company's
   Microsoft 365 (admin consent) and build WireGuard on its firewall (tunnel, rules, WAN rule, OPNsense outbound NAT)

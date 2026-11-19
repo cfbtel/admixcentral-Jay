@@ -21,6 +21,7 @@ class VpnSettingsController extends Controller
             'hasSecret' => VpnSettings::hasClientSecret(),
             'portalHost' => VpnSettings::portalHost(),
             'maxDevices' => VpnSettings::maxDevices(),
+            'proxyIps' => implode(', ', VpnSettings::proxyIps()),
             'redirects' => [VpnSettings::portalUrl('/vpn/callback'), VpnSettings::portalUrl('/vpn/consent/callback')],
             'companies' => Company::orderBy('name')->get()->map(fn ($c) => [
                 'company' => $c,
@@ -38,7 +39,14 @@ class VpnSettingsController extends Controller
             'ms_client_secret' => ['nullable', 'string', 'max:200'],
             'portal_host' => ['nullable', 'regex:/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i', 'max:120'],
             'max_devices' => ['required', 'integer', 'between:1,50'],
+            'proxy_ips' => ['nullable', 'string', 'max:300'],
         ]);
+        $proxies = array_values(array_filter(array_map('trim', explode(',', (string) ($v['proxy_ips'] ?? '')))));
+        foreach ($proxies as $ip) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+                return back()->withErrors(['proxy_ips' => "“{$ip}” isn't an IP address."])->withInput();
+            }
+        }
         if (!empty($v['ms_client_id']) && !Microsoft::isGuid($v['ms_client_id'])) {
             return back()->withErrors(['ms_client_id' => 'The application (client) ID looks like 00000000-0000-0000-0000-000000000000.'])->withInput();
         }
@@ -53,6 +61,7 @@ class VpnSettingsController extends Controller
         }
         VpnSettings::set('portal_host', $host);
         VpnSettings::set('max_devices', (string) $v['max_devices']);
+        VpnSettings::set('proxy_ips', implode(',', $proxies));
         return redirect()->route('vpn.settings')->with('success', 'VPN settings saved.');
     }
 }

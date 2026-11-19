@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(\App\Http\Middleware\IntegrationApiBoundary::class);
         // Staff VPN page host (e.g. wguard.cfbtel.com): serve only /vpn there. Runs before the session starts.
         $middleware->prepend(\App\Http\Middleware\VpnPortalHost::class);
+        // After an in-app update, clear PHP-FPM's opcode cache once so workers run the new release.
+        $middleware->prepend(\App\Http\Middleware\ResetOpcacheAfterUpdate::class);
         $middleware->append(\App\Http\Middleware\EnsureSystemIsSetup::class);
         $middleware->alias([
             'deny.readonly' => \App\Http\Middleware\DenyReadOnly::class,

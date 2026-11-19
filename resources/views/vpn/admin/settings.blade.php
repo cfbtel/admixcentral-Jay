@@ -44,6 +44,8 @@
                     <label class="{{ $label }}">Client secret {{ $hasSecret ? '(saved — leave blank to keep it)' : '' }}<input name="ms_client_secret" type="password" class="{{ $input }}" autocomplete="new-password"></label>
                     <label class="{{ $label }}">Staff VPN page host name<input name="portal_host" value="{{ old('portal_host', $portalHost) }}" placeholder="wguard.cfbtel.com" class="{{ $input }}"></label>
                     <p class="text-xs text-gray-500">Only the VPN pages are served on this name; the AdmixCentral console isn't. Point its DNS and reverse proxy at this server.</p>
+                    <label class="{{ $label }}">Reverse proxy IPs in front of the staff page (optional)<input name="proxy_ips" value="{{ old('proxy_ips', $proxyIps) }}" placeholder="66.70.138.81" class="{{ $input }}"></label>
+                    <p class="text-xs text-gray-500">Only needed when the staff page is reached through a proxy (e.g. Coolify): its forwarded visitor address is then used for sign-in limits.</p>
                     <label class="{{ $label }}">Devices per person<input name="max_devices" value="{{ old('max_devices', $maxDevices) }}" inputmode="numeric" class="{{ $input }}"></label>
                     <button class="{{ $btn }}">Save</button>
                 </form>

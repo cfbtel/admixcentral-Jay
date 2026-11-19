@@ -160,7 +160,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Throttled to 20 req/user/min. The sequential async coordinator fires at most once per
     // realtime interval (~10s = 6/min), so 20/min gives plenty of headroom for reconnects/reloads.
     Route::post('/firewalls/status-poll', [App\Http\Controllers\FirewallController::class, 'statusPoll'])
-        ->middleware('throttle:20,1')
+        ->middleware('throttle:vpn-portal')
         ->name('firewalls.status-poll');
 
     // Firewalls CRUD - Place BEFORE the specific firewall routes
@@ -850,12 +850,12 @@ require __DIR__ . '/auth.php';
 Route::prefix('vpn')->name('vpn.portal.')->group(function () {
     Route::get('/', [App\Http\Controllers\Vpn\PortalController::class, 'index'])->name('index');
     Route::get('/help', [App\Http\Controllers\Vpn\PortalController::class, 'help'])->name('help');
-    Route::get('/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:20,1')->name('login');
-    Route::get('/callback', [App\Http\Controllers\Vpn\PortalController::class, 'callback'])->middleware('throttle:20,1')->name('callback');
-    Route::get('/consent/callback', [App\Http\Controllers\Vpn\PortalController::class, 'consentCallback'])->middleware('throttle:20,1')->name('consent');
+    Route::get('/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:vpn-portal')->name('login');
+    Route::get('/callback', [App\Http\Controllers\Vpn\PortalController::class, 'callback'])->middleware('throttle:vpn-portal')->name('callback');
+    Route::get('/consent/callback', [App\Http\Controllers\Vpn\PortalController::class, 'consentCallback'])->middleware('throttle:vpn-portal')->name('consent');
     Route::post('/logout', [App\Http\Controllers\Vpn\PortalController::class, 'logout'])->name('logout');
-    Route::post('/devices', [App\Http\Controllers\Vpn\PortalController::class, 'addDevice'])->middleware('throttle:20,1')->name('devices.store');
-    Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\PortalController::class, 'removeDevice'])->whereNumber('device')->middleware('throttle:20,1')->name('devices.remove');
+    Route::post('/devices', [App\Http\Controllers\Vpn\PortalController::class, 'addDevice'])->middleware('throttle:vpn-portal')->name('devices.store');
+    Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\PortalController::class, 'removeDevice'])->whereNumber('device')->middleware('throttle:vpn-portal')->name('devices.remove');
 });
 
 // Console: global admins and each company's admins.

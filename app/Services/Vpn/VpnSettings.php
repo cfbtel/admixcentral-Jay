@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Crypt;
  */
 class VpnSettings
 {
-    private const KEYS = ['ms_client_id', 'ms_client_secret', 'portal_host', 'max_devices'];
+    private const KEYS = ['ms_client_id', 'ms_client_secret', 'portal_host', 'max_devices', 'proxy_ips'];
 
     public static function get(string $key, ?string $default = null): ?string
     {
@@ -70,6 +70,12 @@ class VpnSettings
     public static function maxDevices(): int
     {
         return max(1, min(50, (int) self::get('max_devices', '5')));
+    }
+
+    /** Reverse proxies in front of the staff VPN page whose X-Forwarded-For may be trusted. */
+    public static function proxyIps(): array
+    {
+        return array_values(array_filter(array_map('trim', explode(',', (string) self::get('proxy_ips', ''))), fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP)));
     }
 
     public static function microsoftReady(): bool

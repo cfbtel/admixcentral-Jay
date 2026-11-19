@@ -382,7 +382,9 @@ class VpnModuleTest extends TestCase
     public function test_settings_page_saves_the_microsoft_app_with_an_encrypted_secret(): void
     {
         $w = $this->world();
-        $this->console($w['global'])->post('/vpn-admin/settings', ['ms_client_id' => '11111111-2222-3333-4444-555555555555', 'ms_client_secret' => 's3cr3t-value', 'portal_host' => 'wguard.cfbtel.com', 'max_devices' => 5])->assertRedirect('/vpn-admin/settings');
+        $this->console($w['global'])->post('/vpn-admin/settings', ['ms_client_id' => '11111111-2222-3333-4444-555555555555', 'ms_client_secret' => 's3cr3t-value', 'portal_host' => 'wguard.cfbtel.com', 'max_devices' => 5, 'proxy_ips' => '66.70.138.81'])->assertRedirect('/vpn-admin/settings');
+        $this->assertSame(['66.70.138.81'], VpnSettings::proxyIps());
+        $this->console($w['global'])->post('/vpn-admin/settings', ['portal_host' => 'wguard.cfbtel.com', 'max_devices' => 5, 'proxy_ips' => 'not-an-ip'])->assertSessionHasErrors('proxy_ips');
         $this->assertSame('s3cr3t-value', VpnSettings::clientSecret());
         $this->assertStringNotContainsString('s3cr3t', (string) \App\Models\SystemSetting::where('key', 'vpn_ms_client_secret')->value('value'));
         $this->assertSame('wguard.cfbtel.com', VpnSettings::portalHost());
@@ -442,6 +444,24 @@ class VpnModuleTest extends TestCase
         $this->assertSame(2, $n);
         $deletes = collect(Http::recorded())->map(fn ($r) => $r[0])->filter(fn ($r) => $r->method() === 'DELETE')->map(fn ($r) => $r->url())->values()->all();
         $this->assertSame(['https://fw.acme.test/api/v2/vpn/wireguard/peer?id=2', 'https://fw.acme.test/api/v2/vpn/wireguard/peer?id=0'], $deletes);
+    }
+
+    public function test_visitor_address_is_taken_from_the_trusted_proxy_only(): void
+    {
+        VpnSettings::set('proxy_ips', '66.70.138.81');
+        $mk = fn (string $host, string $remote, string $xff) => \Illuminate\Http\Request::create("https://{$host}/vpn", 'GET', [], [], [], ['REMOTE_ADDR' => $remote, 'HTTP_X_FORWARDED_FOR' => $xff]);
+        $this->assertSame('203.0.113.9', \App\Services\Vpn\ClientIp::of($mk('vpn.test', '66.70.138.81', '10.9.9.9, 203.0.113.9')));
+        $this->assertSame('198.51.100.7', \App\Services\Vpn\ClientIp::of($mk('vpn.test', '198.51.100.7', '203.0.113.9')), 'not from the proxy: header ignored');
+        $this->assertSame('66.70.138.81', \App\Services\Vpn\ClientIp::of($mk('localhost', '66.70.138.81', '203.0.113.9')), 'console host: header ignored');
+        $this->assertSame('66.70.138.81', \App\Services\Vpn\ClientIp::of($mk('vpn.test', '66.70.138.81', 'garbage')));
+    }
+
+    public function test_opcache_reset_after_update_never_blocks_requests(): void
+    {
+        $this->world();
+        @unlink(storage_path('framework/opcache-version'));
+        $this->get(self::PORTAL . '/vpn')->assertOk();
+        $this->get(self::PORTAL . '/vpn')->assertOk();
     }
 
     public function test_wireguard_helpers(): void
