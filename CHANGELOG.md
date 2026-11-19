@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — VPN Access (WireGuard + Microsoft 365)
+- Per-company self-service WireGuard remote access for pfSense and OPNsense: CFBTEL admins connect a company's
+  Microsoft 365 (admin consent) and build WireGuard on its firewall (tunnel, rules, WAN rule, OPNsense outbound NAT)
+  or adopt an existing tunnel.
+- Company admins give and remove VPN access by picking people from their own Microsoft 365.
+- Staff VPN page on its own host name (e.g. wguard.cfbtel.com) with Microsoft 365 sign-in, QR code / `.conf`
+  setup for WireGuard or AmneziaVPN, and device removal; the console isn't served on that host.
+- `vpn:sync` every 15 minutes removes devices of people who lost access or whose account was disabled or deleted.
+- See docs/VPN-MODULE.md.
+
 ### Added — J Behi's external API contribution
 - Company-scoped and explicitly authorized all-company MSP inventory REST API
   with Sanctum authentication, HTTPS enforcement, rate limits and safe field lists.

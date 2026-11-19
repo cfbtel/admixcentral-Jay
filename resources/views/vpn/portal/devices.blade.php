@@ -1,0 +1,37 @@
+@extends('vpn.portal.layout', ['title' => 'CFBTEL VPN – Your devices'])
+@section('body')
+    @if($sites->isEmpty())
+        <h1>VPN not set up yet</h1>
+        <p>{{ $company?->name ?? 'Your company' }}'s VPN isn't ready yet. Contact <a href="mailto:support@cfbtel.com">CFBTEL support</a>.</p>
+    @else
+        <h1>Your devices</h1>
+        <p class="small">{{ $company?->name }}</p>
+        @if($notice)<p class="{{ $notice[0] === 'error' ? 'error' : 'ok' }}" role="status">{{ $notice[1] }}</p>@endif
+        <ul class="devices">
+            @forelse($devices as $d)
+                <li class="device">
+                    <div><strong>{{ $d->name }}</strong><span class="small">{{ $d->site->firewall->name }} · {{ $d->address }}</span></div>
+                    <form class="inline" method="POST" action="/vpn/devices/{{ $d->id }}/remove">@csrf<button class="btn danger small-btn" type="submit">Remove</button></form>
+                </li>
+            @empty
+                <li class="small">No devices yet.</li>
+            @endforelse
+        </ul>
+        <h2>Add a device</h2>
+        @if($devices->count() >= $max)
+            <p class="small">You have the maximum of {{ $max }} devices. Remove one first.</p>
+        @else
+            <form method="POST" action="/vpn/devices">@csrf
+                @if($sites->count() > 1)
+                    <label>Office / site<select name="site">@foreach($sites as $s)<option value="{{ $s->id }}">{{ $s->firewall->name }}</option>@endforeach</select></label>
+                @else
+                    <input type="hidden" name="site" value="{{ $sites->first()->id }}">
+                @endif
+                <label>Device name<input name="name" maxlength="32" placeholder="e.g. Work laptop" required pattern="[A-Za-z0-9 ._\-]{1,32}"></label>
+                <label>Type<select name="platform">@foreach($platforms as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></label>
+                <button class="btn" type="submit">Create VPN setup</button>
+            </form>
+        @endif
+        <p class="small">Each device gets its own key. Lost a device? Remove it here and it can no longer connect.</p>
+    @endif
+@endsection

@@ -36,3 +36,9 @@ Schedule::command('firewalls:backup-stale-configs')
     ->dailyAt('02:00')
     ->withoutOverlapping()
     ->onOneServer();
+
+// VPN self-service: drop WireGuard devices of people who lost access (every 15 minutes).
+Schedule::command('vpn:sync')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(30)
+    ->onOneServer();

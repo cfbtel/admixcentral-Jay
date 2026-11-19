@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(\App\Http\Middleware\IntegrationApiBoundary::class);
+        // Staff VPN page host (e.g. wguard.cfbtel.com): serve only /vpn there. Runs before the session starts.
+        $middleware->prepend(\App\Http\Middleware\VpnPortalHost::class);
         $middleware->append(\App\Http\Middleware\EnsureSystemIsSetup::class);
         $middleware->alias([
             'deny.readonly' => \App\Http\Middleware\DenyReadOnly::class,

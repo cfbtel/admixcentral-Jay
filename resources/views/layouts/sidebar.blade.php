@@ -164,6 +164,19 @@
                     <span :class="collapsed ? 'md:hidden' : 'block'"
                         class="transition-opacity duration-300">{{ Auth::user()->isGlobalAdmin() ? __('Companies') : __('Company') }}</span>
                 </a>
+                @php $vpnHref = Auth::user()->isGlobalAdmin() ? route('vpn.settings') : (Auth::user()->company_id ? route('vpn.company', Auth::user()->company_id) : null); @endphp
+                @if($vpnHref)
+                <a href="{{ $vpnHref }}"
+                    class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('vpn.settings*', 'vpn.company', 'vpn.site*', 'vpn.users.*', 'vpn.devices.*', 'vpn.firewall.*') ? 'active' : '' }}">
+                    <svg class="mr-3 h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span :class="collapsed ? 'md:hidden' : 'block'"
+                        class="transition-opacity duration-300">{{ __('VPN Access') }}</span>
+                </a>
+                @endif
                 <a href="{{ route('users.index') }}"
                     class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('users.*') ? 'active' : '' }}">
                     <svg class="mr-3 h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none"

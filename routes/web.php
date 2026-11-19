@@ -841,3 +841,40 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 require __DIR__ . '/auth.php';
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VPN self-service (WireGuard + Microsoft 365 sign-in)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Staff page, served on the VPN portal host (e.g. wguard.cfbtel.com). No AdmixCentral login.
+Route::prefix('vpn')->name('vpn.portal.')->group(function () {
+    Route::get('/', [App\Http\Controllers\Vpn\PortalController::class, 'index'])->name('index');
+    Route::get('/help', [App\Http\Controllers\Vpn\PortalController::class, 'help'])->name('help');
+    Route::get('/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:20,1')->name('login');
+    Route::get('/callback', [App\Http\Controllers\Vpn\PortalController::class, 'callback'])->middleware('throttle:20,1')->name('callback');
+    Route::get('/consent/callback', [App\Http\Controllers\Vpn\PortalController::class, 'consentCallback'])->middleware('throttle:20,1')->name('consent');
+    Route::post('/logout', [App\Http\Controllers\Vpn\PortalController::class, 'logout'])->name('logout');
+    Route::post('/devices', [App\Http\Controllers\Vpn\PortalController::class, 'addDevice'])->middleware('throttle:20,1')->name('devices.store');
+    Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\PortalController::class, 'removeDevice'])->whereNumber('device')->middleware('throttle:20,1')->name('devices.remove');
+});
+
+// Console: global admins and each company's admins.
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::middleware(App\Http\Middleware\CheckRole::class . ':global_admin')->group(function () {
+        Route::get('/vpn-admin/settings', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'index'])->name('vpn.settings');
+        Route::post('/vpn-admin/settings', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'update'])->name('vpn.settings.update');
+    });
+
+    Route::prefix('companies/{company}/vpn')->middleware(App\Http\Middleware\EnsureTenantScope::class)->group(function () {
+        Route::get('/', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'show'])->name('vpn.company');
+        Route::post('/users', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'addUser'])->middleware('deny.readonly')->name('vpn.users.store');
+        Route::post('/users/{vpnUser}/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeUser'])->middleware('deny.readonly')->name('vpn.users.remove');
+        Route::post('/devices/{device}/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeDevice'])->middleware('deny.readonly')->name('vpn.devices.remove');
+        Route::post('/firewalls/{firewall}/enable', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'enableFirewall'])->middleware('deny.readonly')->name('vpn.firewall.enable');
+        Route::get('/sites/{site}', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'site'])->name('vpn.site');
+        Route::post('/sites/{site}/setup', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'setup'])->middleware('deny.readonly')->name('vpn.site.setup');
+        Route::post('/sites/{site}/adopt', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'adopt'])->middleware('deny.readonly')->name('vpn.site.adopt');
+        Route::post('/sites/{site}/settings', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'settings'])->middleware('deny.readonly')->name('vpn.site.settings');
+        Route::post('/sites/{site}/delete', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'destroySite'])->middleware('deny.readonly')->name('vpn.site.delete');
+    });
+});
