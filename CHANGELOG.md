@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cfbtel/cfbtel-vpn-windows GitHub releases (checked hourly; falls back to the releases page). Set
   `VPN_WINDOWS_REPO` in `.env` to use another repository. The AmneziaVPN tip is no longer shown for Windows.
 
+### Fixed — v0.8.4
+- Create WireGuard on pfSense: the WireGuard package check now reads the firewall's installed-package list
+  (a WireGuard endpoint could answer before the package was really there, so the install was skipped and setup
+  stopped with "requires the pfSense-pkg-WireGuard package"). If pfSense still reports the package missing, it is
+  installed and the step is retried once; after installing, AdmixCentral waits up to a minute for it to start.
+
 ### Added — v0.8.3
 - Sign-in for the CFBTEL VPN Windows app: the app opens the staff page (`/vpn/app`), the person signs in and picks
   the office, the device is created from the app's own public key (the private key never leaves the computer), and

@@ -20,6 +20,9 @@ class PfSenseWireGuardDriver implements WireGuardDriver
     public const PACKAGE = 'pfSense-pkg-WireGuard';
     /** Installing a package downloads it on the firewall: allow a few minutes. */
     public const INSTALL_TIMEOUT = 300;
+    private const READY_TRIES = 12;
+    /** Seconds between "is WireGuard ready yet?" checks after installing (tests set 0). */
+    public static int $readyWait = 5;
 
     public function __construct(private PfSenseApiService $api)
     {
@@ -46,8 +49,23 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         return str_contains($e->getMessage(), self::PACKAGE) && str_contains($e->getMessage(), 'not installed');
     }
 
+    /**
+     * Is pfSense's WireGuard package installed? Asks the firewall's installed-package list first (a WireGuard
+     * endpoint can answer before the package is really there), then the WireGuard settings endpoint.
+     */
     public function packageInstalled(): bool
     {
+        try {
+            $names = array_map(fn ($p) => (string) ($p['name'] ?? ''), $this->data($this->api->get('/system/packages', ['limit' => 0])));
+            if (in_array(self::PACKAGE, $names, true)) {
+                return true;
+            }
+            if ($names !== []) {
+                return false; // the list works and WireGuard isn't on it
+            }
+        } catch (\Throwable) {
+            // no privilege for the package list: fall back to asking WireGuard itself
+        }
         try {
             $this->api->get('/vpn/wireguard/settings');
             return true;
@@ -60,9 +78,9 @@ class PfSenseWireGuardDriver implements WireGuardDriver
     }
 
     /** Install pfSense's WireGuard package when it's missing (System → Package Manager → WireGuard). @return bool installed now */
-    public function ensurePackage(): bool
+    public function ensurePackage(bool $force = false): bool
     {
-        if ($this->packageInstalled()) {
+        if (!$force && $this->packageInstalled()) {
             return false;
         }
         try {
@@ -76,10 +94,43 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         } finally {
             $this->api->setApiTimeout(20);
         }
-        if (!$this->packageInstalled()) {
-            throw new VpnException('The WireGuard package was installed but pfSense doesn\'t answer for it yet. Wait a minute and try again.');
+        // pfSense can take a little while before the new package answers.
+        for ($try = 0; $try < self::READY_TRIES; $try++) {
+            if ($this->wireGuardAnswers()) {
+                return true;
+            }
+            if (self::$readyWait > 0) {
+                sleep(self::$readyWait);
+            }
         }
-        return true;
+        throw new VpnException('The WireGuard package was installed but pfSense doesn\'t answer for it yet. Wait a minute and click Create again.');
+    }
+
+    private function wireGuardAnswers(): bool
+    {
+        try {
+            $this->api->get('/vpn/wireguard/settings');
+            return true;
+        } catch (\Throwable $e) {
+            if (self::isMissingPackage($e)) {
+                return false;
+            }
+            throw $e;
+        }
+    }
+
+    /** Runs a WireGuard call; if pfSense says the package is missing, installs it and tries once more. */
+    private function withPackage(callable $call)
+    {
+        try {
+            return $call();
+        } catch (\Throwable $e) {
+            if (!self::isMissingPackage($e)) {
+                throw $e;
+            }
+            $this->ensurePackage(true);
+            return $call();
+        }
     }
 
     public function tunnels(): array
@@ -109,7 +160,7 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         if ($this->ensurePackage()) {
             $log[] = 'WireGuard package installed';
         }
-        $this->api->patch('/vpn/wireguard/settings', ['enable' => true, 'keep_conf' => true]);
+        $this->withPackage(fn () => $this->api->patch('/vpn/wireguard/settings', ['enable' => true, 'keep_conf' => true]));
         $log[] = 'WireGuard enabled';
 
         foreach ($this->tunnels() as $t) {

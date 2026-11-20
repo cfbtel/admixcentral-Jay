@@ -916,14 +916,34 @@ class VpnModuleTest extends TestCase
         Http::fake([
             'https://fw.acme.test/api/v2/vpn/wireguard/settings*' => Http::sequence()->push($missing, 424)->push(['data' => ['enable' => false]]),
             'https://fw.acme.test/api/v2/vpn/wireguard/tunnels*' => Http::response($missing, 424),
+            'https://fw.acme.test/api/v2/system/packages*' => Http::response(['data' => [['name' => 'pfSense-pkg-API']]]),
             'https://fw.acme.test/api/v2/system/package' => Http::response(['data' => ['name' => 'pfSense-pkg-WireGuard']]),
         ]);
+        PfSenseWireGuardDriver::$readyWait = 0;
         $driver = new PfSenseWireGuardDriver(new PfSenseApiService($fw));
         $this->assertSame([], $driver->tunnels());
         $this->assertTrue($driver->ensurePackage());
         $install = collect(Http::recorded())->map(fn ($r) => $r[0])->first(fn ($r) => $r->method() === 'POST');
         $this->assertSame('https://fw.acme.test/api/v2/system/package', $install->url());
         $this->assertSame(['name' => 'pfSense-pkg-WireGuard'], $install->data());
+    }
+
+    public function test_pfsense_driver_trusts_the_installed_package_list_over_the_settings_endpoint(): void
+    {
+        $fw = Firewall::create(['name' => 'Beta HQ', 'company_id' => Company::create(['name' => 'Beta'])->id, 'url' => 'https://fw.beta.test', 'os_type' => 'pfsense', 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => 'x2']);
+        $missing = ['code' => 424, 'status' => 'failed dependency', 'message' => "The requested action requires the 'pfSense-pkg-WireGuard' package but it is not installed."];
+        Http::fake([
+            // The settings endpoint answers even though the package isn't installed yet.
+            'https://fw.beta.test/api/v2/vpn/wireguard/settings*' => Http::response(['data' => ['enable' => false]]),
+            'https://fw.beta.test/api/v2/system/packages*' => Http::sequence()
+                ->push(['data' => [['name' => 'pfSense-pkg-API']]])
+                ->push(['data' => [['name' => 'pfSense-pkg-API'], ['name' => 'pfSense-pkg-WireGuard']]]),
+            'https://fw.beta.test/api/v2/system/package' => Http::response(['data' => ['name' => 'pfSense-pkg-WireGuard']]),
+        ]);
+        PfSenseWireGuardDriver::$readyWait = 0;
+        $driver = new PfSenseWireGuardDriver(new PfSenseApiService($fw));
+        $this->assertFalse($driver->packageInstalled());
+        $this->assertTrue($driver->packageInstalled());
     }
 
     public function test_the_windows_app_signs_in_and_gets_its_tunnel_without_sending_a_private_key(): void
