@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.8.6
+- Updating to v0.8.5 failed on MySQL ("Identifier name … is too long"): the access group tables now use short index
+  names. The migration removes the empty tables the failed update left behind and runs again; nothing else changed.
+- The release tests now run on MySQL instead of SQLite.
+
 ### Added — v0.8.5
 - **VPN access groups.** A company with 2 or more VPN firewalls can make groups: a name, one or more firewalls, and
   members (everyone with VPN access, people picked by hand, and/or linked Microsoft 365 groups). People use the

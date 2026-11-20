@@ -18,32 +18,39 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // v0.8.5 stopped part-way on MySQL (an index name over 64 characters) and left empty tables behind;
+        // this migration never finished, so they hold nothing — start clean.
+        Schema::dropIfExists('vpn_access_group_links');
+        Schema::dropIfExists('vpn_access_group_users');
+        Schema::dropIfExists('vpn_access_group_sites');
+        Schema::dropIfExists('vpn_access_groups');
+
         Schema::create('vpn_access_groups', function (Blueprint $table) {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->string('name', 80);
             $table->boolean('everyone')->default(false); // everyone with VPN access in the company is a member
             $table->timestamps();
-            $table->unique(['company_id', 'name']);
+            $table->unique(['company_id', 'name'], 'vpn_ag_company_name_unique');
         });
         Schema::create('vpn_access_group_sites', function (Blueprint $table) {
-            $table->foreignId('vpn_access_group_id')->constrained('vpn_access_groups')->cascadeOnDelete();
-            $table->foreignId('vpn_site_id')->constrained('vpn_sites')->cascadeOnDelete();
-            $table->primary(['vpn_access_group_id', 'vpn_site_id']);
+            $table->foreignId('vpn_access_group_id')->constrained('vpn_access_groups', 'id', 'vpn_ag_sites_group_fk')->cascadeOnDelete();
+            $table->foreignId('vpn_site_id')->constrained('vpn_sites', 'id', 'vpn_ag_sites_site_fk')->cascadeOnDelete();
+            $table->primary(['vpn_access_group_id', 'vpn_site_id'], 'vpn_ag_sites_primary');
         });
         Schema::create('vpn_access_group_users', function (Blueprint $table) {
-            $table->foreignId('vpn_access_group_id')->constrained('vpn_access_groups')->cascadeOnDelete();
-            $table->foreignId('vpn_user_id')->constrained('vpn_users')->cascadeOnDelete();
-            $table->primary(['vpn_access_group_id', 'vpn_user_id']);
+            $table->foreignId('vpn_access_group_id')->constrained('vpn_access_groups', 'id', 'vpn_ag_users_group_fk')->cascadeOnDelete();
+            $table->foreignId('vpn_user_id')->constrained('vpn_users', 'id', 'vpn_ag_users_user_fk')->cascadeOnDelete();
+            $table->primary(['vpn_access_group_id', 'vpn_user_id'], 'vpn_ag_users_primary');
         });
         Schema::create('vpn_access_group_links', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('vpn_access_group_id')->constrained('vpn_access_groups')->cascadeOnDelete();
+            $table->foreignId('vpn_access_group_id')->constrained('vpn_access_groups', 'id', 'vpn_ag_links_group_fk')->cascadeOnDelete();
             $table->string('provider', 20); // "microsoft" (more sign-in providers later)
             $table->string('external_id', 100); // the provider's group id
             $table->string('external_name')->nullable();
             $table->timestamps();
-            $table->unique(['vpn_access_group_id', 'provider', 'external_id']);
+            $table->unique(['vpn_access_group_id', 'provider', 'external_id'], 'vpn_ag_links_unique');
         });
 
         // Old per-firewall Microsoft 365 groups → access groups.
