@@ -8,5 +8,5 @@
     @endforeach
     <h2>Leaving or losing a device</h2>
     <p>Remove the device on <a href="/vpn">Your devices</a>. When your admin removes your access, or your Microsoft 365 account is disabled or deleted, your devices stop working automatically.</p>
-    <p class="small">Problems: <a href="mailto:support@cfbtel.com">support@cfbtel.com</a></p>
+    <p class="small">Problems: <a href="mailto:help@cfbtel.com">help@cfbtel.com</a></p>
 @endsection

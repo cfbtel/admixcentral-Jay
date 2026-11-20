@@ -2,7 +2,7 @@
 @section('body')
     @if($sites->isEmpty())
         <h1>VPN not set up yet</h1>
-        <p>{{ $company?->name ?? 'Your company' }}'s VPN isn't ready yet. Contact <a href="mailto:support@cfbtel.com">CFBTEL support</a>.</p>
+        <p>{{ $company?->name ?? 'Your company' }}'s VPN isn't ready yet. Contact <a href="mailto:help@cfbtel.com">CFBTEL support</a>.</p>
     @else
         <h1>Your devices</h1>
         <p class="small">{{ $company?->name }}</p>
