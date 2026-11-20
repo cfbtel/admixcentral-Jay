@@ -937,6 +937,85 @@ class VpnModuleTest extends TestCase
         $this->assertNull(VpnSite::find($site->id));
     }
 
+    public function test_the_windows_app_checks_the_office_firewall_for_its_device(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->addDevice('Ann laptop')->assertOk();
+        $device = VpnDevice::firstOrFail();
+        auth()->logout();
+        $url = self::PORTAL . '/vpn/app/status';
+
+        $this->postJson($url, ['public_key' => 'nope'])->assertStatus(422);
+        $this->postJson($url, ['public_key' => WireGuard::keyPair()['public']])->assertNotFound();
+        $this->postJson($url, ['public_key' => $device->public_key])->assertOk()
+            ->assertJson(['office' => 'Acme HQ', 'device_active' => true, 'firewall_reachable' => true, 'tunnel_found' => true, 'listen_port' => 51820, 'peer_present' => true]);
+
+        // The answer is cached for a minute; once it expires a down firewall shows as unreachable.
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->fw->down = true;
+        $this->postJson($url, ['public_key' => $device->public_key])->assertOk()->assertJson(['firewall_reachable' => false, 'peer_present' => false]);
+
+        // A removed device is told so.
+        $device->update(['revoked_at' => now()]);
+        $this->postJson($url, ['public_key' => $device->public_key])->assertOk()->assertJson(['device_active' => false])
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'removed'));
+    }
+
+    public function test_the_windows_app_sends_a_support_ticket_with_its_report(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->addDevice('Ann laptop')->assertOk();
+        $device = VpnDevice::firstOrFail();
+        auth()->logout();
+        $url = self::PORTAL . '/vpn/app/support';
+        $ticket = [
+            'public_keys' => [$device->public_key], 'contact_name' => 'Ann', 'contact_email' => 'ann@acme.com',
+            'subject' => "VPN down\r\non PC1", 'message' => 'It says connected but nothing opens.', 'computer' => 'PC1',
+            'device_id' => 'CFB-ABC123', 'app' => 'CFBTEL VPN 1.0.6', 'problems' => 1, 'warnings' => 2,
+            'report' => "CFBTEL VPN diagnostic report\n== Log (latest) ==\nhandshake did not complete",
+        ];
+
+        // Unknown computers can't file tickets (the app falls back to email).
+        $this->postJson($url, ['public_keys' => [WireGuard::keyPair()['public']]] + $ticket)->assertForbidden();
+        $this->postJson($url, ['contact_email' => 'not an email'] + $ticket)->assertStatus(422);
+
+        $res = $this->postJson($url, $ticket)->assertOk()->assertJson(['emailed' => true]);
+        $ref = $res->json('reference');
+        $r = \App\Models\Vpn\VpnSupportReport::firstOrFail();
+        $this->assertSame('VPN-' . $r->id, $ref);
+        $this->assertSame('VPN down on PC1', $r->subject);
+        $this->assertSame('ann@acme.com', $r->person);
+
+        $mail = collect($this->sentMail())->last();
+        $this->assertSame('help@cfbtel.com', $mail->getTo()[0]->getAddress());
+        $this->assertSame('ann@acme.com', $mail->getReplyTo()[0]->getAddress());
+        $this->assertStringContainsString("[{$ref}] VPN down on PC1", $mail->getSubject());
+        $this->assertStringContainsString('It says connected but nothing opens.', $mail->getTextBody());
+        $att = collect($mail->getAttachments())->first();
+        $this->assertSame("{$ref}-diagnostics.txt", $att->getFilename());
+        $this->assertStringContainsString('handshake did not complete', $att->getBody());
+
+        // Company admins see it; another company's admin can't.
+        $base = "/companies/{$w['acme']->id}/vpn";
+        $this->console($w['acmeAdmin'])->get($base)->assertOk()->assertSee($ref)->assertSee('VPN down on PC1');
+        $this->console($w['acmeAdmin'])->get("$base/support/{$r->id}")->assertOk()->assertSee('handshake did not complete')->assertSee('CFB-ABC123');
+        $this->console($w['acmeAdmin'])->get("$base/support/{$r->id}?download=1")->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="' . $ref . '-diagnostics.txt"');
+        $other = \App\Models\Company::create(['name' => 'Other Co']);
+        $this->console($w['global'])->get("/companies/{$other->id}/vpn/support/{$r->id}")->assertNotFound();
+
+        // At most 5 tickets an hour from one computer.
+        for ($i = 0; $i < 4; $i++) {
+            $this->postJson($url, $ticket)->assertOk();
+        }
+        $this->postJson($url, $ticket)->assertStatus(429);
+    }
+
     public function test_access_groups_need_two_firewalls(): void
     {
         $w = $this->world();

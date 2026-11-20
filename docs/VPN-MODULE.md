@@ -219,3 +219,20 @@ Point the name at this server, either way:
 The **Publish release** GitHub Action (`.github/workflows/publish-release.yml`) runs the VPN and mail tests, then
 creates the tag and the release with those notes. AdmixCentral's updater (Settings → System Updates) offers it from
 there. If the tests fail, nothing is published. An existing release is never changed.
+
+
+## Windows app: diagnostics and support tickets (v0.9.0)
+
+The CFBTEL VPN app (1.0.6+) has a **Diagnostics** tab. Two endpoints on the staff page host serve it (no CSRF,
+throttled, identified by the device's WireGuard public key):
+
+* `POST /vpn/app/status` `{public_key}` → `office, device_active, firewall_reachable, tunnel_found,
+  tunnel_enabled, listen_port, peer_present, message`. 404 for unknown keys. The firewall answer is cached 60 s per
+  office.
+* `POST /vpn/app/support` `{public_keys[], contact_name, contact_email, subject, message, computer, device_id, app,
+  problems, warnings, report}` → `{reference, emailed}`. Stored in `vpn_support_reports`, emailed to
+  VPN settings → Email → "Support tickets … go to" (default help@cfbtel.com) through the VPN mailer, report attached,
+  Reply-To the person. Removed devices may still file tickets; unknown computers get 403 (the app then opens an
+  email instead). 5 per device per hour.
+
+Tickets are listed on the company's VPN page and open at `/companies/{id}/vpn/support/{n}`.

@@ -14,7 +14,7 @@ class VpnSettings
 {
     private const KEYS = [
         'ms_client_id', 'ms_client_secret', 'portal_host', 'max_devices', 'proxy_ips',
-        'smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'smtp_password', 'mail_from_address', 'mail_from_name',
+        'smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'smtp_password', 'mail_from_address', 'mail_from_name', 'support_email',
         'invite_subject', 'invite_body', 'setup_client_id', 'setup_client_secret',
     ];
     private const SECRETS = ['ms_client_secret', 'smtp_password', 'setup_client_secret'];

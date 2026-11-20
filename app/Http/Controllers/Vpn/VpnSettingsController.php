@@ -30,6 +30,7 @@ class VpnSettingsController extends Controller
                 'has_password' => VpnSettings::secret('smtp_password') !== null,
                 'mail_from_address' => VpnSettings::get('mail_from_address'),
                 'mail_from_name' => VpnSettings::get('mail_from_name'),
+                'support_email' => \App\Http\Controllers\Vpn\AppSupportController::supportAddress(),
                 'invite_subject' => VpnSettings::inviteSubject(),
                 'invite_body' => VpnSettings::inviteBody(),
             ],
@@ -56,13 +57,14 @@ class VpnSettingsController extends Controller
             'smtp_password' => ['nullable', 'string', 'max:300'],
             'mail_from_address' => ['nullable', 'email', 'max:190'],
             'mail_from_name' => ['nullable', 'string', 'max:120'],
+            'support_email' => ['nullable', 'email', 'max:190'],
             'invite_subject' => ['required', 'string', 'max:200'],
             'invite_body' => ['required', 'string', 'max:5000'],
         ]);
         if (!str_contains($v['invite_body'], '{link}')) {
             return back()->withErrors(['invite_body' => 'The invitation must contain {link}, the set-password link.'])->withInput();
         }
-        foreach (['smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'mail_from_address', 'mail_from_name', 'invite_subject', 'invite_body'] as $k) {
+        foreach (['smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_username', 'mail_from_address', 'mail_from_name', 'support_email', 'invite_subject', 'invite_body'] as $k) {
             VpnSettings::set($k, isset($v[$k]) ? (string) $v[$k] : '');
         }
         if (!empty($v['smtp_password'])) {

@@ -95,6 +95,8 @@ class CompanyVpnController extends Controller
             'users' => VpnUser::where('company_id', $company->id)->withCount('activeDevices')->orderBy('name')->get(),
             'devices' => VpnDevice::with(['user', 'site.firewall'])->whereIn('vpn_site_id', $sites->pluck('id'))->orderByDesc('created_at')->get(),
             'audit' => VpnAuditLog::where('company_id', $company->id)->orderByDesc('id')->limit(40)->get(),
+            'supportReports' => \App\Models\Vpn\VpnSupportReport::where('company_id', $company->id)->orderByDesc('id')->limit(20)
+                ->get(['id', 'contact_name', 'contact_email', 'subject', 'computer', 'device_name', 'problems', 'warnings', 'emailed_at', 'email_error', 'created_at']),
             'q' => $q,
             'results' => $results,
             'searchError' => $searchError,
@@ -636,6 +638,20 @@ class CompanyVpnController extends Controller
         $site->update($v);
         VpnAuditLog::record($company->id, $this->actor($request), "site_settings {$site->firewall->name} {$v['endpoint']}");
         return back()->with('success', 'Saved. New devices use these settings.');
+    }
+
+    /** A support ticket from the Windows app: the message and the full diagnostic report (as text, or ?download=1). */
+    public function supportReport(Request $request, Company $company, int $report)
+    {
+        $r = \App\Models\Vpn\VpnSupportReport::where('company_id', $company->id)->findOrFail($report);
+        if ($request->boolean('download')) {
+            return response($r->report, 200, [
+                'Content-Type' => 'text/plain; charset=utf-8',
+                'Content-Disposition' => 'attachment; filename="' . $r->reference() . '-diagnostics.txt"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+        return view('vpn.admin.support-report', ['company' => $company, 'r' => $r]);
     }
 
     public function destroySite(Request $request, Company $company, VpnSite $site)

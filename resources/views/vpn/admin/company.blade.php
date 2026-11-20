@@ -314,6 +314,25 @@
                 </div>
             </div>
 
+            {{-- Support tickets from the Windows app --}}
+            <div class="{{ $card }}">
+                <h3 class="text-lg font-bold mb-3">Support tickets from the app</h3>
+                <p class="text-xs text-gray-500 mb-2">Sent from CFBTEL VPN → Diagnostics, with the checks and the VPN log. Each one is also emailed to {{ \App\Http\Controllers\Vpn\AppSupportController::supportAddress() }}.</p>
+                <ul class="text-sm divide-y divide-gray-200 dark:divide-gray-700">
+                    @forelse($supportReports as $sr)
+                        <li class="py-2 flex items-center justify-between gap-3">
+                            <div>
+                                <a href="{{ route('vpn.support.show', [$company, $sr->id]) }}" class="font-medium text-indigo-600 dark:text-indigo-400">{{ $sr->reference() }} · {{ $sr->subject }}</a>
+                                <div class="text-xs text-gray-500">{{ $sr->created_at?->diffForHumans() }} · {{ $sr->contact_name ?: $sr->contact_email }} · {{ $sr->device_name }} @if($sr->computer)({{ $sr->computer }})@endif · {{ $sr->problems }} problem(s), {{ $sr->warnings }} warning(s)</div>
+                            </div>
+                            @if($sr->emailed_at)<span class="text-xs text-green-600 dark:text-green-400">emailed</span>@else<span class="text-xs text-yellow-600 dark:text-yellow-400" title="{{ $sr->email_error }}">not emailed</span>@endif
+                        </li>
+                    @empty
+                        <li class="py-2 text-gray-500">None yet.</li>
+                    @endforelse
+                </ul>
+            </div>
+
             {{-- Activity --}}
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-3">Activity</h3>

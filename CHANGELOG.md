@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.9.0
+- For the CFBTEL VPN Windows app's new Diagnostics tab:
+  - `POST /vpn/app/status`: the office firewall as AdmixCentral sees it for that device (firewall reachable,
+    tunnel and listening port, this device's peer present, or "device removed"). The app identifies itself with the
+    device's WireGuard public key; one firewall look per office per minute.
+  - `POST /vpn/app/support`: support tickets with the person's message, the checks, device ID and the VPN log.
+    Stored as VPN-<number>, emailed to the support address (VPN settings → Email, default help@cfbtel.com) with
+    the report attached and Reply-To set to the person. At most 5 per computer per hour.
+  - Company VPN page: "Support tickets from the app" list, each with the message and the full report (download .txt).
+
 ### Fixed — v0.8.9
 - "Turn off VPN for this firewall" said "Remove this site's devices first" even with no devices left: devices
   already removed but still waiting for the firewall to confirm ("being removed") counted. Now only devices that

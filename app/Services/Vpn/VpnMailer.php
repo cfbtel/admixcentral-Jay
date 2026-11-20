@@ -45,14 +45,21 @@ class VpnMailer
         return strtr($template, collect($vars)->mapWithKeys(fn ($v, $k) => ['{' . $k . '}' => (string) $v])->all());
     }
 
-    public function send(string $to, string $subject, string $text): void
+    /** @param  array<string, string>  $attachments  file name => contents (plain text) */
+    public function send(string $to, string $subject, string $text, ?string $replyTo = null, array $attachments = []): void
     {
         [$fromAddress, $fromName] = $this->from();
         $html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2937">'
             . preg_replace('#(https://[^\s<]+)#', '<a href="$1">$1</a>', nl2br(e($text)))
             . '</div>';
-        $this->mailer()->send([], [], function (Message $m) use ($to, $subject, $text, $html, $fromAddress, $fromName) {
+        $this->mailer()->send([], [], function (Message $m) use ($to, $subject, $text, $html, $fromAddress, $fromName, $replyTo, $attachments) {
             $m->to($to)->from($fromAddress, $fromName)->subject($subject)->text($text)->html($html);
+            if ($replyTo) {
+                $m->replyTo($replyTo);
+            }
+            foreach ($attachments as $name => $data) {
+                $m->attachData($data, $name, ['mime' => 'text/plain']);
+            }
         });
     }
 
