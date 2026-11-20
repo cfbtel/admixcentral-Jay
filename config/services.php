@@ -55,4 +55,9 @@ return [
         'allow_prereleases' => env('ALLOW_PRERELEASES'),  // null = unset (fallback to DB)
     ],
 
+    // CFBTEL VPN for Windows: the GitHub repository whose releases the staff page links to.
+    'vpn_windows' => [
+        'repo' => env('VPN_WINDOWS_REPO', 'cfbtel/cfbtel-vpn-windows'),
+    ],
+
 ];

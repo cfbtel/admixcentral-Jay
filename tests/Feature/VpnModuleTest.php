@@ -989,4 +989,28 @@ class VpnModuleTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         WireGuard::parseSubnet('10.0.70.0/8');
     }
+
+    public function test_windows_download_goes_to_the_newest_cfbtel_vpn_installer(): void
+    {
+        Http::fake(['api.github.com/repos/cfbtel/cfbtel-vpn-windows/releases*' => Http::response([
+            ['tag_name' => 'v1.0.2', 'draft' => true, 'assets' => [['name' => 'cfbtelvpn-amd64-1.0.2.msi', 'browser_download_url' => 'https://github.com/cfbtel/cfbtel-vpn-windows/releases/download/v1.0.2/cfbtelvpn-amd64-1.0.2.msi']]],
+            ['tag_name' => 'v1.0.1', 'draft' => false, 'prerelease' => true, 'assets' => [
+                ['name' => 'cfbtelvpn-amd64-1.0.1.msi', 'browser_download_url' => 'https://github.com/cfbtel/cfbtel-vpn-windows/releases/download/v1.0.1/cfbtelvpn-amd64-1.0.1.msi'],
+                ['name' => 'cfbtelvpn-arm64-1.0.1.msi', 'browser_download_url' => 'https://github.com/cfbtel/cfbtel-vpn-windows/releases/download/v1.0.1/cfbtelvpn-arm64-1.0.1.msi'],
+                ['name' => 'latest.sig', 'browser_download_url' => 'https://github.com/cfbtel/cfbtel-vpn-windows/releases/download/v1.0.1/latest.sig'],
+            ]],
+        ])]);
+
+        \App\Models\User::factory()->create(); // past first-run setup
+        $this->get('/vpn/download/windows')->assertRedirect('https://github.com/cfbtel/cfbtel-vpn-windows/releases/download/v1.0.1/cfbtelvpn-amd64-1.0.1.msi');
+        $this->get('/vpn/download/windows?arch=arm64')->assertRedirect('https://github.com/cfbtel/cfbtel-vpn-windows/releases/download/v1.0.1/cfbtelvpn-arm64-1.0.1.msi');
+        $this->get('/vpn/help')->assertSee('CFBTEL VPN for Windows')->assertDontSee('wireguard.com/install');
+    }
+
+    public function test_windows_download_falls_back_to_the_releases_page(): void
+    {
+        Http::fake(['api.github.com/*' => Http::response([], 500)]);
+        \App\Models\User::factory()->create();
+        $this->get('/vpn/download/windows')->assertRedirect('https://github.com/cfbtel/cfbtel-vpn-windows/releases');
+    }
 }

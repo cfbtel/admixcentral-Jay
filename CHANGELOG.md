@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — v0.8.4
+- The staff page's Windows steps now install **CFBTEL VPN for Windows** instead of WireGuard. The link
+  (`/vpn/download/windows`, `?arch=arm64` for ARM PCs) goes straight to the newest installer on the
+  cfbtel/cfbtel-vpn-windows GitHub releases (checked hourly; falls back to the releases page). Set
+  `VPN_WINDOWS_REPO` in `.env` to use another repository. The AmneziaVPN tip is no longer shown for Windows.
+
 ### Added — v0.8.3
 - Sign-in for the CFBTEL VPN Windows app: the app opens the staff page (`/vpn/app`), the person signs in and picks
   the office, the device is created from the app's own public key (the private key never leaves the computer), and
