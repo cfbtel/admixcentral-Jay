@@ -27,7 +27,7 @@
             </span>
         @endif
     </div>
-    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Optional for both pfSense and OPNsense. If left blank, AdmixCentral will automatically discover and securely pin the firewall's certificate on first connection. To manually pin instead, upload the public PEM/CRT file here or specify the fingerprint below. Never upload a private key.</p>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Optional for both pfSense and OPNsense. If left blank, PFCentral will automatically discover and securely pin the firewall's certificate on first connection. To manually pin instead, upload the public PEM/CRT file here or specify the fingerprint below. Never upload a private key.</p>
 
     {{-- Drop zone --}}
     <div class="relative"

@@ -49,6 +49,24 @@ return Application::configure(basePath: dirname(__DIR__))
             return false; // mark as handled — do not propagate
         });
 
+        // An expired login form (left open too long, or open during an update) goes back to the
+        // login page with a short note instead of the bare "419 Page Expired" screen.
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419 || !$e->getPrevious() instanceof \Illuminate\Session\TokenMismatchException) {
+                return null;
+            }
+            if ($request->expectsJson() || !$request->is('login', 'login/magic', 'forgot-password', 'reset-password', 'two-factor-challenge', 'logout')) {
+                return null;
+            }
+            if ($request->is('logout')) {
+                return redirect()->route('login');
+            }
+
+            return redirect()->route('login')
+                ->withInput($request->only('email'))
+                ->with('status', 'Your session expired. Please sign in again.');
+        });
+
         $exceptions->render(function (BroadcastException $e, Request $request) {
             // For API / AJAX requests return a soft warning, not a 500
             if ($request->expectsJson()) {

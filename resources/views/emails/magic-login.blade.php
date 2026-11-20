@@ -1,5 +1,5 @@
 <x-mail::message>
-# Login to AdmixCentral
+# Sign in to {{ config('brand.name') }}
 
 Click the button below to log in to your account. This link will expire in 15 minutes.
 
@@ -10,5 +10,5 @@ Log in securely
 If you didn't request this email, you can safely ignore it.
 
 Thanks,<br>
-{{ config('app.name') }}
+{{ config('brand.name') }}
 </x-mail::message>

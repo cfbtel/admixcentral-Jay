@@ -5,8 +5,8 @@
     x-transition:leave-end="opacity-0" class="fixed inset-0 bg-gray-900/80 z-40 md:hidden" style="display: none;"></div>
 
 @php
-    $sidebarBg = $settings['sidebar_bg'] ?? '#1f2937';
-    $sidebarText = $settings['sidebar_text'] ?? '#d1d5db';
+    $sidebarBg = $settings['sidebar_bg'] ?? '#0E2238';
+    $sidebarText = $settings['sidebar_text'] ?? '#CBD5E1';
 
     // Determine if background is light or dark for contrast logic
     $hex = str_replace('#', '', $sidebarBg);
@@ -99,7 +99,7 @@
             @if(isset($settings['logo_path']))
                 <img src="{{ $settings['logo_path'] }}" class="block h-9 w-auto" alt="Logo">
             @else
-                <img src="{{ asset('images/logo.png') }}" class="block h-9 w-auto" alt="Logo">
+                <x-brand-logo size="h-9" />
             @endif
         </a>
         <!-- Mobile: Show Logo always in drawer -->
@@ -107,7 +107,7 @@
             @if(isset($settings['logo_path']))
                 <img src="{{ $settings['logo_path'] }}" class="block h-8 w-auto" alt="Logo">
             @else
-                <img src="{{ asset('images/logo.png') }}" class="block h-8 w-auto" alt="Logo">
+                <x-brand-logo size="h-8" />
             @endif
         </a>
 
@@ -204,6 +204,13 @@
                         </div>
                         <span :class="collapsed ? 'md:hidden' : 'block'"
                             class="transition-opacity duration-300">{{ __('Settings') }}</span>
+                    </a>
+                    <a href="{{ route('system.signin') }}"
+                        class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('system.signin*') ? 'active' : '' }}">
+                        <svg class="mr-3 h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <span :class="collapsed ? 'md:hidden' : 'block'" class="transition-opacity duration-300">{{ __('Sign-in') }}</span>
                     </a>
                 @endif
 
@@ -378,7 +385,7 @@
                             }
                         }
                     @endphp
-                    <p class="text-[10px] text-center opacity-50 sidebar-text">{{ $sidebarVersion }}</p>
+                    <button type="button" @click="$dispatch('open-whats-new')" class="block w-full text-[10px] text-center opacity-60 hover:opacity-100 sidebar-text" title="What's new">{{ config('brand.name') }} {{ $sidebarVersion }}</button>
                 </div>
             </div>
         </div>

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.12.0
+- **New look: PFCentral.** AdmixCentral is now **PFCentral**, with a new logo (a shield with a central hub), CFBTEL
+  navy and cyan colours, the Inter typeface, and "© CFBTEL. All rights reserved." at the bottom of every page.
+  If you had kept the old default grey sidebar, it is now navy; colours you picked yourself are kept.
+- **New sign-in page** with a live 3D scene: the PFCentral shield spins inside a firewall ring while traffic flows in;
+  threats are stopped at the ring. Show/hide password, and an expired page now just asks you to sign in again
+  instead of showing "419 Page Expired".
+- **Sign in with Microsoft 365** for your own team (the MSP). Set it up under **Sign-in** in the menu (or the gear
+  on the login page): your tenant ID and the Microsoft 365 groups that may sign in. Everyone in those groups gets
+  the Administrator role for all companies; membership is checked at every sign-in. Email and password keep working.
+- **What's new**: this window, shown once after each update. Open it again any time from the version number at the
+  bottom of the page or in the menu.
+
 ### Added — v0.11.0
 - **Firewall → pfBlockerNG** (pfSense firewalls). Manage the pfBlockerNG package from AdmixCentral with the same
   sections as pfSense: Overview, General, IP, DNSBL, Feeds, Update, Reports, Logs and Quick setup.

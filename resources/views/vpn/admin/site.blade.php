@@ -54,7 +54,7 @@
                     <h3 class="text-lg font-bold mb-1">Create WireGuard automatically</h3>
                     <p class="text-sm text-gray-500 mb-4">Creates the tunnel, its firewall rules (DNS to the firewall, block the firewall's admin pages, allow the chosen LAN, block other private networks, internet), the WAN rule and outbound NAT{{ $fw->isPfSense() ? ' (Automatic is switched to Hybrid, which keeps the automatic rules), and lets the VPN network use the DNS Resolver. Installs the WireGuard package if needed' : '' }}. Full tunnel: devices browse through this office.</p>
                     @if(!empty($needsPackage))
-                        <p class="text-sm mb-4 p-3 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200">The WireGuard package isn't installed on this firewall yet. <strong>Create WireGuard installs it first</strong> (pfSense downloads it; this can take 1–3 minutes, keep the page open). The AdmixCentral API user needs the <code>api-v2-system-package-post</code> privilege for that.</p>
+                        <p class="text-sm mb-4 p-3 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200">The WireGuard package isn't installed on this firewall yet. <strong>Create WireGuard installs it first</strong> (pfSense downloads it; this can take 1–3 minutes, keep the page open). The PFCentral API user needs the <code>api-v2-system-package-post</code> privilege for that.</p>
                     @endif
                     <form method="POST" action="{{ route('vpn.site.setup', [$company, $site]) }}" class="space-y-3 max-w-lg" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Working… (installing WireGuard can take a few minutes)'">@csrf
                         <label class="{{ $label }}">VPN users may reach<select name="lan" class="{{ $input }}">{!! $ifOpts($lanDefault) !!}</select></label>
@@ -83,7 +83,7 @@
             @if($canManage)
                 <div class="{{ $card }}">
                     <h3 class="font-semibold mb-2">Turn off VPN for this firewall</h3>
-                    <p class="text-sm text-gray-500 mb-3">Stops managing it in AdmixCentral. The WireGuard tunnel on the firewall is left as it is. Remove its devices first (devices already being removed don't count).</p>
+                    <p class="text-sm text-gray-500 mb-3">Stops managing it in PFCentral. The WireGuard tunnel on the firewall is left as it is. Remove its devices first (devices already being removed don't count).</p>
                     <form method="POST" action="{{ route('vpn.site.delete', [$company, $site]) }}" onsubmit="return confirm('Turn off VPN management for this firewall?')">@csrf<button class="{{ $btnRed }}">Turn off</button></form>
                 </div>
             @endif

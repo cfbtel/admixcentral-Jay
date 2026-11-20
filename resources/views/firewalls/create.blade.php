@@ -165,7 +165,7 @@
                                         </label>
                                     </div>
                                     <p class="text-xs text-amber-700/90 dark:text-amber-300/80 mt-1 ml-6">
-                                        AdmixCentral will log in once to your OPNsense Web GUI, create an API key/secret, and store them securely.
+                                        PFCentral will log in once to your OPNsense Web GUI, create an API key/secret, and store them securely.
                                     </p>
 
                                     <div x-show="autoGen" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 ml-6 pt-2 border-t border-amber-200/60 dark:border-amber-800/40">

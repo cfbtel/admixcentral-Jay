@@ -430,7 +430,7 @@
                             </svg>
                             <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-white">No firewalls managed</h3>
                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by adding your first
-                                firewall to Admix Central.</p>
+                                firewall to PFCentral.</p>
                             <div class="mt-6">
                                 <a href="{{ route('firewalls.create') }}"
                                     class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">

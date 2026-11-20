@@ -55,7 +55,7 @@
                 <div class="{{ $ui['card'] }} p-6">
                     <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Could not reach pfBlockerNG on this firewall</h3>
                     <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">{{ $error }}</p>
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">AdmixCentral talks to pfBlockerNG through the pfSense REST API command prompt. Check that the firewall is online and that its API user may use Diagnostics → Command Prompt.</p>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">PFCentral talks to pfBlockerNG through the pfSense REST API command prompt. Check that the firewall is online and that its API user may use Diagnostics → Command Prompt.</p>
                     <a href="{{ route('firewall.pfblockerng.index', ['firewall' => $firewall, 'tab' => $tab]) }}" class="{{ $ui['btn2'] }} mt-4">Try again</a>
                 </div>
             @elseif (!$installed)

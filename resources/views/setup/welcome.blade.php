@@ -1,6 +1,6 @@
 <x-guest-layout>
     <div class="mb-6 text-center">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Welcome to AdmixCentral</h1>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Welcome to PFCentral</h1>
         <p class="mt-2 text-gray-600 dark:text-gray-400">Let's set up your admin account to get started.</p>
     </div>
 

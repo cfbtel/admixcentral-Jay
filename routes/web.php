@@ -14,6 +14,17 @@ use Illuminate\Support\Facades\Broadcast;
 Route::post('/login/magic', [App\Http\Controllers\Auth\MagicLoginController::class, 'send'])->middleware('throttle:3,1')->name('login.magic');
 Route::get('/login/magic/{id}', [App\Http\Controllers\Auth\MagicLoginController::class, 'verify'])->name('login.magic.verify');
 
+// Microsoft 365 sign-in for the MSP's own staff (Sign-in settings decide who may use it)
+Route::get('/login/microsoft', [App\Http\Controllers\Auth\MicrosoftLoginController::class, 'redirect'])->middleware(['guest', 'throttle:20,1'])->name('login.microsoft');
+Route::get('/login/microsoft/callback', [App\Http\Controllers\Auth\MicrosoftLoginController::class, 'callback'])->middleware(['guest', 'throttle:20,1'])->name('login.microsoft.callback');
+
+// Sign-in settings (global administrators); the gear on the login page opens this.
+Route::middleware(['auth', 'verified', App\Http\Middleware\CheckRole::class . ':global_admin'])->group(function () {
+    Route::get('/system/sign-in', [App\Http\Controllers\MspSignInController::class, 'show'])->name('system.signin');
+    Route::post('/system/sign-in', [App\Http\Controllers\MspSignInController::class, 'save'])->name('system.signin.save');
+    Route::get('/system/sign-in/groups', [App\Http\Controllers\MspSignInController::class, 'searchGroups'])->name('system.signin.groups');
+});
+
 Route::get('/', function () {
     return redirect('/login');
 });
@@ -90,6 +101,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::post('/profile/theme', [ProfileController::class, 'updateThemePreference'])->name('profile.theme');
+
+    // "What's new" after each update
+    Route::get('/whats-new', [App\Http\Controllers\WhatsNewController::class, 'index'])->name('whats-new');
+    Route::post('/whats-new/seen', [App\Http\Controllers\WhatsNewController::class, 'seen'])->name('whats-new.seen');
 
     // WebSocket info (protected — exposes internal server configuration)
     Route::get('/ws/info', [App\Http\Controllers\WebSocket\DeviceWebSocketController::class, 'info'])->name('ws.info');

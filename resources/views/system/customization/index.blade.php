@@ -10,8 +10,8 @@
 
             <form method="POST" action="{{ route('system.settings.update') }}" enctype="multipart/form-data" x-data="{ 
                       activeTab: 'configuration',
-                      sidebarBg: '{{ $settings['sidebar_bg'] ?? '#1f2937' }}', 
-                      sidebarText: '{{ $settings['sidebar_text'] ?? '#d1d5db' }}',
+                      sidebarBg: '{{ $settings['sidebar_bg'] ?? '#0E2238' }}', 
+                      sidebarText: '{{ $settings['sidebar_text'] ?? '#CBD5E1' }}',
                       recommendedText() {
                         const r = parseInt(this.sidebarBg.substr(1,2),16);
                         const g = parseInt(this.sidebarBg.substr(3,2),16);
@@ -1075,7 +1075,7 @@
                                                 class="block text-sm font-medium text-gray-700 dark:text-gray-300">Live
                                                 Preview</label>
                                             <button type="button"
-                                                @click="sidebarBg = '#1f2937'; sidebarText = '#d1d5db'"
+                                                @click="sidebarBg = '#0E2238'; sidebarText = '#CBD5E1'"
                                                 class="text-xs font-medium text-indigo-600 hover:text-indigo-500 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300">
                                                 Reset to Default
                                             </button>
@@ -1180,7 +1180,7 @@
                                             <div class="ml-3 flex-1 md:flex md:justify-between">
                                                 <p class="text-sm text-yellow-700 dark:text-yellow-300">
                                                     <span class="font-medium">Connection Not Secure.</span>
-                                                    Admix Central recommends using HTTPS. You can automatically provision a
+                                                    PFCentral recommends using HTTPS. You can automatically provision a
                                                     free
                                                     Let's Encrypt SSL certificate.
                                                 </p>

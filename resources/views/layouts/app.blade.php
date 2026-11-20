@@ -32,17 +32,17 @@
     </script>
     @endif
 
-    <title>{{ config('app.name', 'Laravel') }}</title>
+    <title>{{ isset($title) ? $title . ' · ' : '' }}{{ config('brand.name') }}</title>
 
     <!-- Favicon -->
     @php
-        $favicon = $settings['icon_path'] ?? ($settings['favicon_path'] ?? ($settings['logo_path'] ?? asset('favicon.ico')));
+        $favicon = $settings['icon_path'] ?? ($settings['favicon_path'] ?? ($settings['logo_path'] ?? asset('favicon.svg')));
     @endphp
     <link rel="icon" href="{{ $favicon }}">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet" />
 
     <!-- Scripts -->
     <script>
@@ -190,12 +190,12 @@
 
     <!-- Mobile Header -->
     <div
-        class="md:hidden flex items-center justify-between h-16 bg-gray-900 border-b border-gray-700 px-4 z-40 relative">
+        class="md:hidden flex items-center justify-between h-16 bg-brand-950 border-b border-white/10 px-4 z-40 relative">
         <a href="{{ route('dashboard') }}">
             @if(isset($settings['logo_path']))
                 <img src="{{ $settings['logo_path'] }}" class="block h-8 w-auto" alt="Logo">
             @else
-                <img src="{{ asset('images/logo.png') }}" class="block h-8 w-auto" alt="Logo">
+                <x-brand-logo size="h-8" />
             @endif
         </a>
         <button @click="sidebarOpen = !sidebarOpen" class="text-gray-400 hover:text-white focus:outline-none">
@@ -234,9 +234,19 @@
 
 
                 {{ $slot }}
+
+                <footer class="mt-10 px-4 sm:px-6 lg:px-8 py-6 border-t border-gray-200/70 dark:border-white/5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p>&copy; {{ max(now()->year, config('brand.since')) }} {{ config('brand.owner') }}. All rights reserved. {{ config('brand.name') }} is a product of {{ config('brand.owner') }}.</p>
+                    <button type="button" @click="$dispatch('open-whats-new')" class="tabular-nums hover:text-brand-700 dark:hover:text-brand-300 focus:outline-none focus-visible:underline">
+                        {{ config('brand.name') }} {{ \App\Support\ReleaseNotes::currentVersion() }} &middot; What's new
+                    </button>
+                </footer>
             </main>
         </div>
     </div>
+    @auth
+        <x-whats-new />
+    @endauth
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         // Set Default Options for SweetAlert2 to prevent layout shifts

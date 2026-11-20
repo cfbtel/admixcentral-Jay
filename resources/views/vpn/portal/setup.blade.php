@@ -3,7 +3,7 @@
     <h1>{{ $title }}</h1>
     @if(!empty($confirm))
         <p>This connects <strong>{{ $company->name }}</strong>'s Microsoft 365 to the CFBTEL staff VPN, so its people sign in to the VPN with their work account.</p>
-        <p><strong>Sign in as a Global Administrator</strong> of {{ $company->name }}'s Microsoft 365 and accept the permissions. Then, in your Microsoft 365, AdmixCentral will:</p>
+        <p><strong>Sign in as a Global Administrator</strong> of {{ $company->name }}'s Microsoft 365 and accept the permissions. Then, in your Microsoft 365, PFCentral will:</p>
         <ul>
             <li>create an app named <strong>{{ $appName }}</strong> (only for your organization),</li>
             <li>give it permission to sign people in and to read your users and group memberships (to see who can use the VPN, to use groups such as "VPN", and to stop access when an account is disabled or leaves the group),</li>

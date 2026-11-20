@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'AdmixCentral'),
+    'name' => env('APP_NAME', 'PFCentral'),
 
     /*
     |--------------------------------------------------------------------------

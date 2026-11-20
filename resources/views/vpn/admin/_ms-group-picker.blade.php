@@ -1,7 +1,7 @@
 {{--
     Type-to-search picker for Microsoft 365 groups: pick several, remove with ×, saved with the surrounding form.
     $pickerName  input name (e.g. "ms_groups")       $pickerSelected  [{id, name}]
-    $company     for the search URL                  $input           input classes from the page
+    $company     for the search URL (or $pickerUrl)                  $input           input classes from the page
 --}}
 @once
 <script>
@@ -46,7 +46,7 @@
     };
 </script>
 @endonce
-<div x-data="msGroupPicker(@js(array_values($pickerSelected)), @js(route('vpn.groups.search', $company)))" @click.outside="open = false" @keydown.escape.prevent="open = false" class="relative">
+<div x-data="msGroupPicker(@js(array_values($pickerSelected)), @js($pickerUrl ?? route('vpn.groups.search', $company)))" @click.outside="open = false" @keydown.escape.prevent="open = false" class="relative">
     <input type="hidden" name="{{ $pickerName }}_present" value="1">
     <template x-for="g in selected" :key="g.id"><input type="hidden" name="{{ $pickerName }}[]" :value="g.id"></template>
     <div class="flex flex-wrap items-center gap-1.5 p-1.5 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus-within:ring-2 focus-within:ring-indigo-500 cursor-text" @click="$refs.box.focus()">
@@ -57,7 +57,7 @@
             </span>
         </template>
         <input x-ref="box" x-model="q" type="text" autocomplete="off" role="combobox" :aria-expanded="open"
-               :placeholder="selected.length ? 'Add another group…' : 'Type to search this company\'s Microsoft 365 groups'"
+               :placeholder="selected.length ? 'Add another group…' : @js($pickerPlaceholder ?? 'Type to search this company\'s Microsoft 365 groups')"
                class="flex-1 min-w-[12rem] border-0 bg-transparent p-1 text-sm focus:ring-0 dark:text-gray-200"
                @focus="search()" @input.debounce.300ms="search()"
                @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)" @keydown.enter.prevent="enter()" @keydown.backspace="back()">

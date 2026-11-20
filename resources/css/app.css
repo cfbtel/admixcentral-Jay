@@ -89,3 +89,13 @@
         background-color: transparent !important;
     }
 }
+/* Release notes ("What's new") rendered from CHANGELOG.md */
+.release-notes ul { @apply list-disc pl-5 space-y-1.5; }
+.release-notes ul ul { @apply mt-1.5; }
+.release-notes p + p, .release-notes p + ul { @apply mt-2; }
+.release-notes code { @apply px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[0.85em]; }
+.release-notes strong { @apply font-semibold text-gray-900 dark:text-gray-100; }
+.release-notes a { @apply text-brand-700 dark:text-brand-300 underline underline-offset-2; }
+
+/* Brand selection colour */
+::selection { background: #33C5F3; color: #0E2238; }

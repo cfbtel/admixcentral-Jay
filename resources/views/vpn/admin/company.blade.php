@@ -54,7 +54,7 @@
                 @if($canManage && $setupLink)
                     <div class="mt-4 p-4 rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 max-w-2xl">
                         <p class="text-sm font-semibold">{{ $vc->hasOwnApp() ? 'Renew or repair automatically' : 'Connect Microsoft 365 automatically' }}</p>
-                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-1">Sign in as a <strong>Global Administrator of this company's Microsoft 365</strong>. AdmixCentral creates the company's own "CFBTEL VPN" app there with all its permissions approved, saves the app ID, secret and email domains here, then removes its setup access. Nothing to copy or type.</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-1">Sign in as a <strong>Global Administrator of this company's Microsoft 365</strong>. PFCentral creates the company's own "CFBTEL VPN" app there with all its permissions approved, saves the app ID, secret and email domains here, then removes its setup access. Nothing to copy or type.</p>
                         <a href="{{ $setupLink }}" class="{{ $btn }} mt-3 inline-block">{{ $vc->hasOwnApp() ? 'Run automatic setup again' : 'Connect Microsoft 365 automatically' }}</a>
                         <label class="block mt-3 text-xs text-gray-500">Not their admin? Send this link to the company's Microsoft 365 admin (valid {{ \App\Http\Controllers\Vpn\MicrosoftSetupController::LINK_DAYS }} days, works once)
                             <input readonly value="{{ $setupLink }}" class="mt-1 w-full {{ $input }}" onclick="this.select()">
@@ -126,7 +126,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="{{ $td }} text-gray-500">This company has no firewalls in AdmixCentral yet.</td></tr>
+                            <tr><td colspan="7" class="{{ $td }} text-gray-500">This company has no firewalls in PFCentral yet.</td></tr>
                         @endforelse
                         </tbody>
                     </table>

@@ -44,7 +44,7 @@
                     <label class="{{ $label }}">Application (client) ID<input name="ms_client_id" value="{{ old('ms_client_id', $clientId) }}" placeholder="00000000-0000-0000-0000-000000000000" class="{{ $input }}" autocomplete="off"></label>
                     <label class="{{ $label }}">Client secret {{ $hasSecret ? '(saved — leave blank to keep it)' : '' }}<input name="ms_client_secret" type="password" class="{{ $input }}" autocomplete="new-password"></label>
                     <label class="{{ $label }}">Staff VPN page host name<input name="portal_host" value="{{ old('portal_host', $portalHost) }}" placeholder="wguard.cfbtel.com" class="{{ $input }}"></label>
-                    <p class="text-xs text-gray-500">Only the VPN pages are served on this name; the AdmixCentral console isn't. Point its DNS and reverse proxy at this server.</p>
+                    <p class="text-xs text-gray-500">Only the VPN pages are served on this name; the PFCentral console isn't. Point its DNS and reverse proxy at this server.</p>
                     <label class="{{ $label }}">Reverse proxy IPs in front of the staff page (optional)<input name="proxy_ips" value="{{ old('proxy_ips', $proxyIps) }}" placeholder="66.70.138.81" class="{{ $input }}"></label>
                     <p class="text-xs text-gray-500">Only needed when the staff page is reached through a proxy (e.g. Coolify): its forwarded visitor address is then used for sign-in limits.</p>
                     <label class="{{ $label }}">Devices per person<input name="max_devices" value="{{ old('max_devices', $maxDevices) }}" inputmode="numeric" class="{{ $input }}"></label>
@@ -55,7 +55,7 @@
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-1">One-click Microsoft 365 setup</h3>
                 <p class="text-sm text-gray-500 mb-3">
-                    Lets a company connect with one click: its Global Administrator signs in, and AdmixCentral creates the company's own "CFBTEL VPN" app in its Microsoft 365 with all permissions approved.
+                    Lets a company connect with one click: its Global Administrator signs in, and PFCentral creates the company's own "CFBTEL VPN" app in its Microsoft 365 with all permissions approved.
                     It needs one app registration in <strong>CFBTEL's</strong> Microsoft Entra, created once:
                 </p>
                 <ol class="text-xs text-gray-600 dark:text-gray-300 list-decimal ml-5 space-y-1 mb-4 max-w-3xl">
@@ -64,7 +64,7 @@
                     <li>API permissions → Microsoft Graph → <strong>Delegated</strong>: <code>Application.ReadWrite.All</code>, <code>AppRoleAssignment.ReadWrite.All</code>, <code>DelegatedPermissionGrant.ReadWrite.All</code> (plus the default <code>User.Read</code>). No application permissions, and no admin consent needed in CFBTEL's tenant.</li>
                     <li>Certificates &amp; secrets → New client secret → paste its <em>Value</em> below, together with the Application (client) ID.</li>
                 </ol>
-                <p class="text-xs text-gray-500 mb-4">AdmixCentral only gets these permissions for the minutes of a setup, as the admin who signs in, and deletes the setup app from the company's tenant when done. The setup sign-in is never saved.</p>
+                <p class="text-xs text-gray-500 mb-4">PFCentral only gets these permissions for the minutes of a setup, as the admin who signs in, and deletes the setup app from the company's tenant when done. The setup sign-in is never saved.</p>
                 <form method="POST" action="{{ route('vpn.settings.setup') }}" class="space-y-4 max-w-xl">@csrf
                     <label class="{{ $label }}">Setup app — Application (client) ID<input name="setup_client_id" value="{{ old('setup_client_id', $setupClientId) }}" placeholder="00000000-0000-0000-0000-000000000000" class="{{ $input }}" autocomplete="off"></label>
                     <label class="{{ $label }}">Setup app — client secret {{ $setupHasSecret ? '(saved — leave blank to keep it)' : '' }}<input name="setup_client_secret" type="password" class="{{ $input }}" autocomplete="new-password"></label>
@@ -78,7 +78,7 @@
                 @if(\App\Services\Vpn\VpnMailer::usesMandrill())
                     <p class="text-sm mb-4 p-3 rounded bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200">All VPN emails go through <strong>Mandrill</strong> (System Settings → Email Configuration) from <strong>{{ config('mail.from.address') }}</strong>. The SMTP server and From address below are only used if Mandrill is turned off.</p>
                 @else
-                    <p class="text-sm text-gray-500 mb-4">Set AdmixCentral's mail to Mandrill (System Settings → Email Configuration) and every VPN email uses it, from its verified address. Until then: the SMTP server below, or AdmixCentral's own mail setup if it's empty.</p>
+                    <p class="text-sm text-gray-500 mb-4">Set PFCentral's mail to Mandrill (System Settings → Email Configuration) and every VPN email uses it, from its verified address. Until then: the SMTP server below, or PFCentral's own mail setup if it's empty.</p>
                 @endif
                 <form method="POST" action="{{ route('vpn.settings.email') }}" class="space-y-4 max-w-2xl">@csrf
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
