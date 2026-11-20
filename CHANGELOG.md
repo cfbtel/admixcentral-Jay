@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.12.1
+- **Email sign-in links work again.** Opening the link now shows a "Continue as …" page and signs you in when you
+  click Continue. Before, mail scanners such as Microsoft Defender opened the one-time link first and used it up,
+  and links could fail behind the server's proxy or port ("401 Unauthorized"). An expired or used link now says so
+  on the sign-in page.
+- **Sign-in page layout.** It no longer stretches across the whole screen when the server hasn't rebuilt its styles:
+  the sign-in pages now carry their own stylesheet. Clearer buttons, a styled "Keep me signed in" box.
+
+### Changed — v0.12.1
+- The **CFBTEL logo** is used on the sign-in page, in the menu and in the browser tab, and the CFBTEL cloud is
+  the 3D logo that spins on the sign-in page.
+
 ### Added — v0.12.0
 - **New look: PFCentral.** AdmixCentral is now **PFCentral**, with a new logo (a shield with a central hub), CFBTEL
   navy and cyan colours, the Inter typeface, and "© CFBTEL. All rights reserved." at the bottom of every page.

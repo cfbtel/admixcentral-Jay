@@ -259,4 +259,32 @@ class PfCentralBrandAndSignInTest extends TestCase
         $response = $this->withHeader('Accept', 'text/html')->post('/login', ['email' => 'jay@cfbtel.com', 'password' => 'x', '_token' => 'stale']);
         $response->assertRedirect(route('login'))->assertSessionHas('status', 'Your session expired. Please sign in again.');
     }
+
+    public function test_magic_link_signs_in_after_confirming_and_works_behind_another_host_or_port(): void
+    {
+        $jay = $this->globalAdmin();
+        \Illuminate\Support\Facades\Mail::fake();
+        $this->post('/login/magic', ['email' => 'jay@cfbtel.com'])->assertRedirect();
+        $url = null;
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\MagicLoginLink::class, function ($mail) use (&$url) {
+            $url = $mail->url;
+
+            return true;
+        });
+
+        // The same path and query reached through a proxy, another scheme or port still checks out.
+        $parts = parse_url($url);
+        $behindProxy = 'https://veeamone.example.test:26039' . $parts['path'] . '?' . $parts['query'];
+        $this->get($behindProxy)->assertOk()->assertSee('Continue as Jay');
+        $this->assertGuest();
+        $this->post($behindProxy)->assertRedirect('/dashboard');
+        $this->assertAuthenticatedAs($jay);
+    }
+
+    public function test_expired_magic_link_explains_itself(): void
+    {
+        $jay = $this->globalAdmin();
+        $url = \Illuminate\Support\Facades\URL::temporarySignedRoute('login.magic.verify', now()->subMinute(), ['id' => $jay->id], absolute: false);
+        $this->get($url)->assertRedirect(route('login'))->assertSessionHasErrors(['magic' => 'This sign-in link has expired (links work for 15 minutes). Ask for a new one below.']);
+    }
 }

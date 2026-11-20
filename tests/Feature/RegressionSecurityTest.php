@@ -89,14 +89,23 @@ class RegressionSecurityTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ])->save();
 
-        $url = URL::temporarySignedRoute('login.magic.verify', now()->addMinutes(15), ['id' => $u->id]);
+        $url = URL::temporarySignedRoute('login.magic.verify', now()->addMinutes(15), ['id' => $u->id], absolute: false);
+
+        // Opening the link (or a mail scanner opening it) only shows a confirmation page.
+        $this->get($url)->assertOk()->assertSee('Continue as');
+        $this->assertGuest();
 
         // First use: redirects to 2FA challenge and remains unauthenticated
-        $this->get($url)->assertRedirect(route('two-factor.login'));
+        $this->post($url)->assertRedirect(route('two-factor.login'));
         $this->assertGuest();
 
         // Replay attempt with the same URL: rejected as single-use consumed
-        $this->get($url)->assertStatus(401);
+        $this->post($url)->assertRedirect(route('login'))->assertSessionHasErrors('magic');
+        $this->get($url)->assertRedirect(route('login'))->assertSessionHasErrors('magic');
+        $this->assertGuest();
+
+        // A tampered link is refused.
+        $this->post(str_replace('signature=', 'signature=0', $url))->assertRedirect(route('login'))->assertSessionHasErrors('magic');
     }
 
     /**

@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Broadcast;
 // Broadcast::routes(['middleware' => ['web', 'auth']]);
 
 Route::post('/login/magic', [App\Http\Controllers\Auth\MagicLoginController::class, 'send'])->middleware('throttle:3,1')->name('login.magic');
-Route::get('/login/magic/{id}', [App\Http\Controllers\Auth\MagicLoginController::class, 'verify'])->name('login.magic.verify');
+Route::get('/login/magic/{id}', [App\Http\Controllers\Auth\MagicLoginController::class, 'show'])->middleware('throttle:30,1')->name('login.magic.verify');
+Route::post('/login/magic/{id}', [App\Http\Controllers\Auth\MagicLoginController::class, 'verify'])->middleware('throttle:10,1')->name('login.magic.confirm');
 
 // Microsoft 365 sign-in for the MSP's own staff (Sign-in settings decide who may use it)
 Route::get('/login/microsoft', [App\Http\Controllers\Auth\MicrosoftLoginController::class, 'redirect'])->middleware(['guest', 'throttle:20,1'])->name('login.microsoft');

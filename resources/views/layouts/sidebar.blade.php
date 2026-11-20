@@ -99,7 +99,7 @@
             @if(isset($settings['logo_path']))
                 <img src="{{ $settings['logo_path'] }}" class="block h-9 w-auto" alt="Logo">
             @else
-                <x-brand-logo size="h-9" />
+                <x-brand-logo compact />
             @endif
         </a>
         <!-- Mobile: Show Logo always in drawer -->
@@ -107,7 +107,7 @@
             @if(isset($settings['logo_path']))
                 <img src="{{ $settings['logo_path'] }}" class="block h-8 w-auto" alt="Logo">
             @else
-                <x-brand-logo size="h-8" />
+                <x-brand-logo compact />
             @endif
         </a>
 

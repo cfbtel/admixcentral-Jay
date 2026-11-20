@@ -1,6 +1,7 @@
-// PFCentral login scene (three.js): the PFCentral shield spins at the centre of a network.
+// PFCentral login scene (three.js): the CFBTEL cloud mark spins at the centre of a network.
 // Traffic flows in from the edge; cyan packets pass the firewall ring, red ones are stopped at it.
-import * as THREE from '/vendor/three/three.module.min.js';
+import * as THREE from 'three';
+import { SVGLoader } from '/vendor/three/SVGLoader.js';
 
 const canvas = document.getElementById('pfc-scene');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -22,7 +23,6 @@ if (canvas && webglAvailable()) {
 
 function start() {
     const CYAN = new THREE.Color('#33C5F3');
-    const ICE = new THREE.Color('#E6F7FD');
     const RED = new THREE.Color('#FF5A64');
     const NAVY = new THREE.Color('#0E2238');
 
@@ -51,71 +51,28 @@ function start() {
     scene.add(world);
 
     /* ------------------------------------------------------------ the logo */
+    // The CFBTEL cloud mark, extruded from the logo's own SVG path, spinning at the centre.
     const logo = new THREE.Group();
     world.add(logo);
 
-    // Shield outline traced from the PFCentral mark (64x64 SVG, centred and scaled).
-    const s = 0.085;
-    const P = (x, y) => new THREE.Vector2((x - 32) * s, (32 - y) * s);
-    const shield = new THREE.Shape();
-    const a = P(32, 4), b = P(56, 12.5), c = P(56, 30), d = P(32, 60), e = P(8, 30), f = P(8, 12.5);
-    shield.moveTo(a.x, a.y);
-    shield.lineTo(b.x, b.y);
-    shield.lineTo(c.x, c.y);
-    const c1 = P(56, 45.2), c2 = P(45.7, 55.6), c3 = P(18.3, 55.6), c4 = P(8, 45.2);
-    shield.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, d.x, d.y);
-    shield.bezierCurveTo(c3.x, c3.y, c4.x, c4.y, e.x, e.y);
-    shield.lineTo(f.x, f.y);
-    shield.closePath();
-
-    const shieldGeo = new THREE.ExtrudeGeometry(shield, {
-        depth: 0.55, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.12, bevelSegments: 4, curveSegments: 32,
+    const CLOUD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 40"><path d="M49,24.43c0,2.26-0.69,4.46-1.98,6.32c-1.29,1.85-3.11,3.28-5.24,4.08c-2.12,0.8-4.43,0.94-6.63,0.4 c-2.2-0.54-4.18-1.73-5.69-3.43c-0.02-0.02-0.03-0.03-0.03-0.04c-0.25-0.31-0.4-0.7-0.4-1.1s0.14-0.79,0.4-1.1 c0.03-0.04,0.08-0.08,0.11-0.12c0.18-0.18,0.39-0.31,0.63-0.4c0.24-0.08,0.49-0.12,0.74-0.1c0.52,0.04,0.98,0.4,1.34,0.76 c1.23,1.29,2.87,2.12,4.64,2.34c0.31,0.04,0.63,0.06,0.95,0.06c1.16,0,2.31-0.26,3.35-0.76c1.05-0.5,1.96-1.24,2.68-2.14 c0.72-0.91,1.23-1.96,1.48-3.09c0.25-1.13,0.25-2.3-0.02-3.43c-0.26-1.13-0.79-2.17-1.51-3.07c-0.73-0.9-1.66-1.62-2.71-2.11 c-1.05-0.49-2.2-0.74-3.36-0.73c-1.16,0.02-2.3,0.29-3.34,0.8c-0.71,0.36-1.35,0.81-1.92,1.36c-0.17,0.16-0.32,0.33-0.47,0.51 c-0.04,0.05-0.09,0.1-0.14,0.15c-0.08,0.09-0.15,0.19-0.23,0.27l-5.6,6.02l-5.78,6.2c0,0-0.03,0.03-0.03,0.03 c-0.26,0.25-0.53,0.49-0.8,0.73c0,0-0.02,0.01-0.02,0.02c-1.86,1.6-4.2,2.54-6.65,2.67c-0.12,0-0.24,0.01-0.36,0.02h-0.26 c-2.96,0-5.8-1.17-7.89-3.26c-2.1-2.1-3.27-4.92-3.27-7.87c0-0.2,0-0.41,0.02-0.61c0.02-0.2,0.03-0.4,0.05-0.6 c0.02-0.2,0.05-0.4,0.08-0.59c0.03-0.19,0.07-0.38,0.11-0.58c0.04-0.19,0.08-0.38,0.14-0.58c0.05-0.19,0.11-0.38,0.17-0.56 c0.06-0.18,0.13-0.36,0.19-0.54s0.14-0.36,0.23-0.53c0.08-0.18,0.17-0.35,0.25-0.52s0.18-0.34,0.28-0.5 c0.09-0.16,0.19-0.33,0.3-0.48C2.9,18.19,3,18.03,3.11,17.88c0.11-0.15,0.23-0.3,0.36-0.46c0.13-0.15,0.25-0.29,0.37-0.43 s0.25-0.28,0.38-0.41c0.13-0.14,0.27-0.26,0.41-0.39c0.14-0.13,0.29-0.25,0.43-0.37c0.14-0.12,0.3-0.24,0.45-0.35 s0.31-0.22,0.47-0.32c0.16-0.1,0.32-0.2,0.48-0.3c0.17-0.1,0.33-0.19,0.5-0.28c0.17-0.08,0.34-0.18,0.52-0.25 c0.18-0.08,0.36-0.16,0.53-0.23c0.18-0.07,0.36-0.14,0.54-0.19c0.18-0.06,0.37-0.12,0.56-0.17c0.19-0.05,0.38-0.1,0.58-0.14 s0.38-0.08,0.58-0.11s0.41-0.06,0.62-0.08c0.2-0.03,0.4-0.04,0.59-0.05h0.19c0.07-0.34,0.15-0.68,0.25-1.01 c0.21-0.69,0.48-1.35,0.82-1.99c0.65-1.23,1.53-2.31,2.6-3.22c0.52-0.44,1.08-0.84,1.68-1.18c2.47-1.44,5.41-1.86,8.19-1.18 c0.2,0.05,0.41,0.1,0.62,0.16c0.89,0.25,1.73,0.62,2.53,1.09c0.18,0.1,0.35,0.21,0.52,0.32l0.14,0.09 c0.29,0.21,0.57,0.43,0.84,0.68c0.28,0.24,0.55,0.49,0.8,0.76c0.12,0.12,0.24,0.25,0.35,0.37l0.17,0.19 c0.08,0.09,0.15,0.19,0.22,0.27c0.07,0.08,0.11,0.14,0.16,0.21c0.14,0.19,0.27,0.38,0.4,0.58c0.19,0.3,0.38,0.6,0.55,0.91 c0.18,0.3,0.3,0.62,0.34,0.96c0.02,0.22,0,0.44-0.07,0.65c-0.1,0.3-0.27,0.57-0.51,0.78c-0.24,0.21-0.52,0.36-0.83,0.42 c-0.23,0.05-0.47,0.04-0.7,0c-0.23-0.04-0.45-0.15-0.63-0.3c-0.14-0.14-0.25-0.29-0.34-0.45c-0.28-0.41-0.51-0.86-0.8-1.28 c-0.1-0.14-0.21-0.29-0.32-0.42c-0.52-0.66-1.17-1.23-1.89-1.67c-0.41-0.25-0.83-0.46-1.27-0.63c-0.26-0.11-0.53-0.2-0.8-0.28 c-0.35-0.09-0.69-0.16-1.05-0.21c-0.35-0.04-0.69-0.07-1.04-0.07c-0.34,0-0.69,0.03-1.02,0.08c-0.34,0.05-0.67,0.12-1,0.2 c-0.33,0.09-0.64,0.2-0.96,0.34c-0.31,0.13-0.61,0.28-0.9,0.45c-0.29,0.17-0.57,0.36-0.84,0.58c-0.26,0.21-0.52,0.43-0.75,0.67 s-0.46,0.5-0.67,0.76c-0.2,0.28-0.4,0.57-0.56,0.86c-0.17,0.3-0.32,0.63-0.45,0.96c-0.07,0.18-0.13,0.36-0.19,0.53 c-0.04,0.13-0.08,0.26-0.11,0.4c0.24,0.07,0.47,0.14,0.7,0.22c1.01,0.37,1.96,0.89,2.83,1.51c0.5,0.36,0.96,0.77,1.4,1.21 c0.38,0.38,0.75,0.83,0.75,1.4c0,0.39-0.14,0.77-0.38,1.08l-0.16,0.18c-0.32,0.31-0.75,0.48-1.2,0.48c-0.25,0-0.5-0.05-0.73-0.15 c-0.22-0.12-0.42-0.28-0.58-0.47c-0.09-0.1-0.19-0.19-0.28-0.29c-0.19-0.18-0.37-0.34-0.58-0.5c-0.14-0.11-0.29-0.22-0.43-0.31 c-0.27-0.19-0.56-0.36-0.85-0.5c-0.16-0.08-0.33-0.16-0.49-0.22c-0.31-0.13-0.63-0.24-0.96-0.32c-0.29-0.08-0.58-0.14-0.88-0.18 c-0.27-0.03-0.52-0.06-0.8-0.08c-0.03,0-0.07,0-0.1,0h-0.26c-0.21,0-0.42,0-0.63,0.03c-1.12,0.09-2.19,0.42-3.16,0.97 S6.55,19.1,5.9,20c-0.65,0.91-1.09,1.94-1.3,3.03c-0.21,1.09-0.18,2.22,0.09,3.29c0.27,1.07,0.78,2.08,1.47,2.95 c0.7,0.86,1.58,1.57,2.58,2.06s2.1,0.76,3.22,0.79c1.12,0.03,2.23-0.19,3.25-0.63c1.03-0.47,1.96-1.14,2.73-1.98l0.27-0.28 c0,0,1.31-1.41,3.04-3.27c0.57-0.61,1.18-1.26,1.8-1.94c0.41-0.44,0.83-0.89,1.24-1.34c2.66-2.85,5.18-5.56,5.18-5.56l0.46-0.5 l0.02-0.02c0.39-0.39,0.81-0.75,1.26-1.08c0,0,0-0.01,0.02-0.02c0.08-0.07,0.16-0.13,0.25-0.19c0.96-0.67,2.01-1.18,3.13-1.53 c0.01,0,0.02,0,0.03,0c0.98-0.3,2-0.45,3.03-0.47h0.19c1.46,0,2.92,0.29,4.27,0.85s2.59,1.38,3.63,2.41s1.86,2.26,2.42,3.61 s0.85,2.8,0.85,4.26l0,0L49,24.43z"/></svg>';
+    const shapes = new SVGLoader().parse(CLOUD).paths.flatMap((p) => SVGLoader.createShapes(p));
+    const cloudGeo = new THREE.ExtrudeGeometry(shapes, {
+        depth: 5, bevelEnabled: true, bevelThickness: 1.1, bevelSize: 0.55, bevelSegments: 4, curveSegments: 24,
     });
-    shieldGeo.center();
-    const shieldMesh = new THREE.Mesh(shieldGeo, new THREE.MeshStandardMaterial({
-        color: 0x12385a, metalness: 0.55, roughness: 0.32, emissive: 0x0a1c30, emissiveIntensity: 0.6,
+    cloudGeo.center();
+    cloudGeo.scale(0.1, -0.1, 0.1); // SVG y points down
+    cloudGeo.computeVertexNormals();
+    const cloud = new THREE.Mesh(cloudGeo, new THREE.MeshStandardMaterial({
+        color: CYAN, emissive: 0x0b5f80, emissiveIntensity: 0.55, metalness: 0.35, roughness: 0.28,
     }));
-    logo.add(shieldMesh);
-
-    // Cyan rim around the front and back faces.
-    const outlinePts = shield.getPoints(96).map((p) => new THREE.Vector3(p.x, p.y, 0));
-    const outlineCenter = new THREE.Box3().setFromPoints(outlinePts).getCenter(new THREE.Vector3());
-    const rimGeo = new THREE.BufferGeometry().setFromPoints(outlinePts.map((p) => p.sub(outlineCenter)));
-    const rimMat = new THREE.LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0.95 });
-    const frontRim = new THREE.LineLoop(rimGeo, rimMat);
-    frontRim.position.z = 0.42;
-    frontRim.scale.setScalar(1.035);
-    logo.add(frontRim);
-    const backRim = frontRim.clone();
-    backRim.position.z = -0.42;
-    logo.add(backRim);
-
-    // Hub and spokes on both faces (so the mark reads from either side while it spins).
-    const hubMat = new THREE.MeshStandardMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 0.9, metalness: 0.2, roughness: 0.3 });
-    const nodeMat = new THREE.MeshStandardMaterial({ color: ICE, emissive: 0x7fd9f7, emissiveIntensity: 0.35, roughness: 0.4 });
-    const spokeMat = new THREE.MeshStandardMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 0.6 });
-    const hubCenter = P(32, 32).sub(new THREE.Vector2(outlineCenter.x, outlineCenter.y));
-    const nodes2d = [P(32, 16.5), P(18.6, 40.2), P(45.4, 40.2)].map((v) => v.sub(new THREE.Vector2(outlineCenter.x, outlineCenter.y)));
-    for (const side of [1, -1]) {
-        const z = side * 0.44;
-        const hub = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), hubMat);
-        hub.position.set(hubCenter.x, hubCenter.y, z);
-        hub.scale.z = 0.45;
-        logo.add(hub);
-        for (const n of nodes2d) {
-            const node = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 12), nodeMat);
-            node.position.set(n.x, n.y, z);
-            node.scale.z = 0.5;
-            logo.add(node);
-            const from = new THREE.Vector3(hubCenter.x, hubCenter.y, z);
-            const to = new THREE.Vector3(n.x, n.y, z);
-            const len = from.distanceTo(to);
-            const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, len, 10), spokeMat);
-            spoke.position.copy(from).lerp(to, 0.5);
-            spoke.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
-            logo.add(spoke);
-        }
-    }
+    logo.add(cloud);
+    // Soft glow disc behind the mark.
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(3.2, 64), new THREE.MeshBasicMaterial({
+        color: CYAN, transparent: true, opacity: 0.07, depthWrite: false,
+    }));
+    glow.position.z = -1.2;
+    world.add(glow);
 
     /* ------------------------------------------------------ firewall rings */
     const RING_R = 3.9;

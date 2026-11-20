@@ -195,7 +195,7 @@
             @if(isset($settings['logo_path']))
                 <img src="{{ $settings['logo_path'] }}" class="block h-8 w-auto" alt="Logo">
             @else
-                <x-brand-logo size="h-8" />
+                <x-brand-logo compact />
             @endif
         </a>
         <button @click="sidebarOpen = !sidebarOpen" class="text-gray-400 hover:text-white focus:outline-none">
