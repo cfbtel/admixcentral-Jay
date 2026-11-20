@@ -808,6 +808,7 @@ class VpnModuleTest extends TestCase
         $this->console($w['acmeAdmin'])->post('/vpn-admin/settings/setup', ['setup_client_id' => ''])->assertForbidden();
         $this->assertStringContainsString('https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize', MicrosoftSetup::make()->authorizeUrl()['url']);
         $this->assertStringContainsString('Application.ReadWrite.All', urldecode(MicrosoftSetup::make()->authorizeUrl()['url']));
+        $this->assertStringContainsString('graph.microsoft.com/User.Read', urldecode(MicrosoftSetup::make()->authorizeUrl()['url']));
     }
 
     public function test_setup_refuses_a_port_an_existing_tunnel_uses(): void

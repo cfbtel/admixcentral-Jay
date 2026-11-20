@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.8.7
+- One-click Microsoft 365 setup stopped with "Microsoft refused to read the organization … Insufficient privileges":
+  the setup sign-in now also asks for `User.Read` (needed to read the organization's name and domains), and if that
+  still can't be read the setup carries on without it.
+
 ### Fixed — v0.8.6
 - Updating to v0.8.5 failed on MySQL ("Identifier name … is too long"): the access group tables now use short index
   names. The migration removes the empty tables the failed update left behind and runs again; nothing else changed.

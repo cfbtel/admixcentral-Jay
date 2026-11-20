@@ -128,7 +128,13 @@ class MicrosoftSetupController extends Controller
         }
 
         try {
-            $org = $setup->organization();
+            try {
+                $org = $setup->organization();
+            } catch (\Throwable $e) {
+                // The name and domains are a convenience: carry on without them.
+                Log::notice('VPN setup: organization not readable', ['company' => $company->id, 'error' => $e->getMessage()]);
+                $org = ['name' => null, 'domains' => []];
+            }
             $reuse = $vc->ms_tenant_id === $tid ? $vc->ms_client_id : null;
             $app = $setup->provision(VpnSettings::portalUrl('/vpn/callback'), $reuse);
         } catch (\Throwable $e) {

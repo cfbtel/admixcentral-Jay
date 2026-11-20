@@ -33,6 +33,7 @@ class MicrosoftSetup
         'https://graph.microsoft.com/Application.ReadWrite.All',
         'https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All',
         'https://graph.microsoft.com/DelegatedPermissionGrant.ReadWrite.All',
+        'https://graph.microsoft.com/User.Read', // reading the organization's name and domains needs it
     ];
     public const SECRET_YEARS = 2;
 
