@@ -244,9 +244,10 @@ class PfCentralBrandAndSignInTest extends TestCase
             ->assertSee('open: true', false)
             ->assertSee('CFBTEL. All rights reserved.');
 
-        $this->actingAs($jay)->postJson('/whats-new/seen')->assertOk();
+        // Shown once: opening the next page without closing it doesn't show it again.
         $this->assertSame($version, $jay->fresh()->whats_new_seen);
         $this->actingAs($jay->fresh())->get('/dashboard')->assertSee('open: false', false);
+        $this->actingAs($jay)->postJson('/whats-new/seen')->assertOk();
 
         $this->actingAs($jay)->get('/whats-new')->assertOk()->assertSee($version);
     }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.12.6
+- The "What's new" window opens only once per update: it counts as seen as soon as it appears, so it no longer
+  comes back on every page when you move on without clicking "Got it".
+
 ### Fixed — v0.12.5
 - **What's new** now works: the release notes file wasn't included in the update packages, so the window never
   appeared and the "What's new" link did nothing. After an update it opens once by itself with the notes of every

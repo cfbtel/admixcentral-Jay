@@ -8,6 +8,10 @@
         : collect(\App\Support\ReleaseNotes::all())->keys()
             ->filter(fn ($v) => version_compare(ltrim($v, 'v'), ltrim($wnVersion, 'v'), '<='))
             ->take(3)->mapWithKeys(fn ($v) => [$v => \App\Support\ReleaseNotes::for($v)])->all();
+    // Shown once: it counts as seen as soon as it opens, even if the person just moves on to another page.
+    if ($wnAuto) {
+        auth()->user()->forceFill(['whats_new_seen' => $wnVersion])->saveQuietly();
+    }
 @endphp
 <div x-data="{
         open: @js($wnAuto),
