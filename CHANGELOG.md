@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — v0.10.1
+- When AdmixCentral's mail is set to Mandrill (System Settings → Email Configuration), every VPN email
+  (invitations, password links, support tickets from the Windows app) goes through Mandrill from that setting's
+  From address, ignoring the VPN SMTP settings. VPN settings → Email says so.
+- Support tickets from the app get a random 5-digit reference (VPN-48213) in the email subject.
+
 ### Added — v0.10.0
 - Two-factor sign-in for email-and-password VPN accounts, with an authenticator app (Google Authenticator,
   Microsoft Authenticator, …) set up by scanning a QR code:

@@ -74,8 +74,12 @@
             </div>
 
             <div class="{{ $card }}">
-                <h3 class="text-lg font-bold mb-1">Email (invitations and password links)</h3>
-                <p class="text-sm text-gray-500 mb-4">Used for email-and-password VPN accounts. Leave the SMTP server empty to use AdmixCentral's own mail setup.</p>
+                <h3 class="text-lg font-bold mb-1">Email (invitations, password links, support tickets)</h3>
+                @if(\App\Services\Vpn\VpnMailer::usesMandrill())
+                    <p class="text-sm mb-4 p-3 rounded bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200">All VPN emails go through <strong>Mandrill</strong> (System Settings → Email Configuration) from <strong>{{ config('mail.from.address') }}</strong>. The SMTP server and From address below are only used if Mandrill is turned off.</p>
+                @else
+                    <p class="text-sm text-gray-500 mb-4">Set AdmixCentral's mail to Mandrill (System Settings → Email Configuration) and every VPN email uses it, from its verified address. Until then: the SMTP server below, or AdmixCentral's own mail setup if it's empty.</p>
+                @endif
                 <form method="POST" action="{{ route('vpn.settings.email') }}" class="space-y-4 max-w-2xl">@csrf
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <label class="{{ $label }} md:col-span-2">SMTP server<input name="smtp_host" value="{{ old('smtp_host', $mail['smtp_host']) }}" placeholder="smtp.office365.com" class="{{ $input }}" autocomplete="off"></label>

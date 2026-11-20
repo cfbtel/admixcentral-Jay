@@ -97,7 +97,7 @@ class CompanyVpnController extends Controller
             'audit' => VpnAuditLog::where('company_id', $company->id)->orderByDesc('id')->limit(40)->get(),
             'mfaCompany' => \App\Services\Vpn\VpnMfa::companyMode($company->id),
             'supportReports' => \App\Models\Vpn\VpnSupportReport::where('company_id', $company->id)->orderByDesc('id')->limit(20)
-                ->get(['id', 'contact_name', 'contact_email', 'subject', 'computer', 'device_name', 'problems', 'warnings', 'emailed_at', 'email_error', 'created_at']),
+                ->get(['id', 'reference', 'contact_name', 'contact_email', 'subject', 'computer', 'device_name', 'problems', 'warnings', 'emailed_at', 'email_error', 'created_at']),
             'q' => $q,
             'results' => $results,
             'searchError' => $searchError,

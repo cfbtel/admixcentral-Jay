@@ -8,13 +8,25 @@ use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * VPN emails (invitations, password links), sent through the SMTP server set in VPN settings,
- * or through AdmixCentral's own mail setup when none is set.
+ * VPN emails (invitations, password links, support tickets from the Windows app).
+ *
+ * When AdmixCentral's mail is set to Mandrill (System Settings → Email Configuration), every VPN email goes through
+ * Mandrill from that setting's From address (the address Mandrill has verified). Otherwise they use the SMTP server
+ * set in VPN settings, or AdmixCentral's own mail setup when none is set.
  */
 class VpnMailer
 {
+    /** AdmixCentral's mail is Mandrill (with an API key). */
+    public static function usesMandrill(): bool
+    {
+        return config('mail.default') === 'mandrill' && (string) config('mail.mailers.mandrill.key', '') !== '';
+    }
+
     private function mailer()
     {
+        if (self::usesMandrill()) {
+            return Mail::mailer('mandrill');
+        }
         $host = VpnSettings::get('smtp_host');
         if (!$host) {
             return Mail::mailer();
@@ -33,6 +45,13 @@ class VpnMailer
 
     private function from(): array
     {
+        if (self::usesMandrill()) {
+            // Mandrill only sends from its verified domain: always the Mandrill setting's From address.
+            return [
+                (string) config('mail.from.address'),
+                VpnSettings::get('mail_from_name') ?: (config('mail.from.name') ?: 'CFBTEL VPN'),
+            ];
+        }
         return [
             VpnSettings::get('mail_from_address') ?: (config('mail.from.address') ?: 'no-reply@cfbtel.com'),
             VpnSettings::get('mail_from_name') ?: 'CFBTEL VPN',

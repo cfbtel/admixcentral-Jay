@@ -119,6 +119,7 @@ class AppSupportController extends Controller
 
         $company = Company::find($device->site->company_id);
         $report = VpnSupportReport::create([
+            'reference' => VpnSupportReport::newReference(),
             'company_id' => $device->site->company_id,
             'vpn_device_id' => $device->id,
             'device_name' => $device->name,

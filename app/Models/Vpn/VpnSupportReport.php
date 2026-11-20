@@ -13,6 +13,18 @@ class VpnSupportReport extends Model
 
     public function reference(): string
     {
-        return 'VPN-' . $this->id;
+        return ($this->getAttributes()['reference'] ?? null) ?: 'VPN-' . $this->id;
+    }
+
+    /** A random, unused reference like "VPN-48213". */
+    public static function newReference(): string
+    {
+        for ($i = 0; $i < 50; $i++) {
+            $ref = 'VPN-' . random_int(10000, 99999);
+            if (!static::where('reference', $ref)->exists()) {
+                return $ref;
+            }
+        }
+        return 'VPN-' . random_int(100000, 999999);
     }
 }

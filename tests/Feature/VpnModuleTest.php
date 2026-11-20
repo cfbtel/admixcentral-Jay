@@ -661,6 +661,30 @@ class VpnModuleTest extends TestCase
         return [VpnUser::where('upn', 'dan@nomicrosoft.example')->firstOrFail(), $res, $mail];
     }
 
+    public function test_vpn_emails_go_through_mandrill_from_its_address_when_it_is_set_up(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        // VPN settings have their own SMTP and From; Mandrill (AdmixCentral's mail) wins over both.
+        VpnSettings::set('smtp_host', 'smtp.example.test');
+        VpnSettings::set('mail_from_address', 'vpn@other.example');
+        config(['mail.default' => 'mandrill', 'mail.mailers.mandrill' => ['transport' => 'array', 'key' => 'md-test'], 'mail.from.address' => 'noreply@cfbtel.com']);
+        $this->assertTrue(\App\Services\Vpn\VpnMailer::usesMandrill());
+        $this->console($w['global'])->get('/vpn-admin/settings')->assertOk()->assertSee('go through')->assertSee('noreply@cfbtel.com');
+
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->addDevice('Ann laptop')->assertOk();
+        auth()->logout();
+        $this->postJson(self::PORTAL . '/vpn/app/support', [
+            'public_keys' => [VpnDevice::firstOrFail()->public_key], 'contact_email' => 'ann@acme.com', 'subject' => 'Slow', 'message' => 'Slow VPN', 'report' => 'report',
+        ])->assertOk()->assertJson(['emailed' => true]);
+        $sent = collect(app('mail.manager')->mailer('mandrill')->getSymfonyTransport()->messages())->map(fn ($m) => $m->getOriginalMessage());
+        $this->assertCount(1, $sent);
+        $this->assertSame('noreply@cfbtel.com', $sent[0]->getFrom()[0]->getAddress());
+        $this->assertMatchesRegularExpression('/^\[VPN-\d{5}\] Slow/', $sent[0]->getSubject());
+    }
+
     public function test_required_two_factor_is_set_up_at_first_sign_in_and_asked_every_time(): void
     {
         $w = $this->world();
@@ -1118,7 +1142,8 @@ class VpnModuleTest extends TestCase
         $res = $this->postJson($url, $ticket)->assertOk()->assertJson(['emailed' => true]);
         $ref = $res->json('reference');
         $r = \App\Models\Vpn\VpnSupportReport::firstOrFail();
-        $this->assertSame('VPN-' . $r->id, $ref);
+        $this->assertMatchesRegularExpression('/^VPN-\d{5}$/', $ref);
+        $this->assertSame($ref, $r->reference());
         $this->assertSame('VPN down on PC1', $r->subject);
         $this->assertSame('ann@acme.com', $r->person);
 
