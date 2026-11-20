@@ -58,8 +58,22 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # setup-php sometimes hangs on the runner's package mirrors; give it 6 minutes, then try once more.
       - name: Set up PHP
+        id: php1
         if: steps.v.outputs.exists == 'false'
+        timeout-minutes: 6
+        continue-on-error: true
+        uses: shivammathur/setup-php@b2f833f7d1c070621af195c088d275c4cd60ef8f # 2.9.0
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_sqlite, pdo_mysql, sodium, bcmath
+          tools: composer:v2
+          coverage: none
+
+      - name: Set up PHP (second try)
+        if: steps.v.outputs.exists == 'false' && steps.php1.outcome != 'success'
+        timeout-minutes: 8
         uses: shivammathur/setup-php@b2f833f7d1c070621af195c088d275c4cd60ef8f # 2.9.0
         with:
           php-version: '8.4'
