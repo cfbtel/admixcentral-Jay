@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Vpn\VpnAuditLog;
 use App\Models\Vpn\VpnCompany;
 use App\Models\Vpn\VpnUser;
+use App\Services\Auth\MspSignIn;
 use App\Services\Vpn\MicrosoftSetup;
 use App\Services\Vpn\VpnException;
 use App\Services\Vpn\VpnSettings;
@@ -27,6 +28,7 @@ use Illuminate\Support\Facades\Log;
 class MicrosoftSetupController extends Controller
 {
     private const PENDING = 'vpn_ms_setup';
+    public const MSP_APP_NAME = 'PFCentral sign-in';
     public const LINK_DAYS = 7;
 
     /** The setup link for a company (shown on its VPN page in the console). */
@@ -35,6 +37,38 @@ class MicrosoftSetupController extends Controller
         $now = now()->getTimestamp();
         $t = Crypt::encryptString(json_encode(['c' => $company->id, 'iat' => $now, 'exp' => $now + self::LINK_DAYS * 86400, 'by' => $by]));
         return VpnSettings::portalUrl('/vpn/setup') . '?' . http_build_query(['t' => $t]);
+    }
+
+    /**
+     * The one-time link for setting up PFCentral's own "Sign in with Microsoft 365" (Sign-in settings).
+     * It runs through this same page so it can use the setup app's registered redirect address.
+     */
+    public static function mspLink(string $by, string $callbackUri, string $backUrl): string
+    {
+        $now = now()->getTimestamp();
+        // "ms" (milliseconds) makes the link single-use even when a new one is made in the same second.
+        $t = Crypt::encryptString(json_encode(['msp' => 1, 'iat' => $now, 'ms' => (int) floor(microtime(true) * 1000), 'exp' => $now + 3600, 'by' => $by, 'cb' => $callbackUri, 'back' => $backUrl]));
+
+        return VpnSettings::portalUrl('/vpn/setup') . '?' . http_build_query(['t' => $t]);
+    }
+
+    /** The MSP sign-in setup link's data, or null when it is not one, expired or already used. */
+    private function mspFromLink(?string $t): ?array
+    {
+        try {
+            $data = json_decode(Crypt::decryptString((string) $t), true);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!is_array($data) || empty($data['msp']) || ($data['exp'] ?? 0) < now()->getTimestamp()) {
+            return null;
+        }
+        $done = (int) MspSignIn::get('auto_setup_ms');
+        if ($done && (int) ($data['ms'] ?? 0) <= $done) {
+            return null;
+        }
+
+        return $data;
     }
 
     /** @return array{0: Company, 1: VpnCompany, 2: array}|null */
@@ -67,6 +101,15 @@ class MicrosoftSetupController extends Controller
 
     public function show(Request $request)
     {
+        if ($msp = $this->mspFromLink($request->query('t'))) {
+            if (!MicrosoftSetup::make()->configured()) {
+                return $this->page('Not available yet', 'One-click Microsoft 365 setup is not configured yet (VPN Access → settings: setup app).', 503);
+            }
+
+            return $this->page('Set up Microsoft 365 sign-in for ' . config('brand.name'), '', 200, [
+                'confirmMsp' => true, 't' => (string) $request->query('t'), 'appName' => self::MSP_APP_NAME, 'back' => $msp['back'] ?? null,
+            ]);
+        }
         $link = $this->fromLink($request->query('t'));
         if (!$link) {
             return $this->expired();
@@ -83,7 +126,7 @@ class MicrosoftSetupController extends Controller
 
     public function start(Request $request)
     {
-        $link = $this->fromLink($request->input('t'));
+        $link = $this->mspFromLink($request->input('t')) ?? $this->fromLink($request->input('t'));
         if (!$link) {
             return $this->expired();
         }
@@ -101,6 +144,9 @@ class MicrosoftSetupController extends Controller
         $pending = $request->session()->pull(self::PENDING);
         if (!is_array($pending) || ($pending['exp'] ?? 0) < time() || !hash_equals((string) ($pending['state'] ?? ''), (string) $request->query('state', ''))) {
             return $this->page('Setup expired', 'This setup took too long or was started in another browser. Open the setup link again.', 400);
+        }
+        if ($msp = $this->mspFromLink($pending['t'] ?? null)) {
+            return $this->mspCallback($request, $pending, $msp);
         }
         $link = $this->fromLink($pending['t'] ?? null);
         if (!$link) {
@@ -169,6 +215,51 @@ class MicrosoftSetupController extends Controller
 
         return $this->page('Microsoft 365 connected', '', 200, [
             'done' => true, 'company' => $company, 'vc' => $vc, 'admin' => $admin, 'cleaned' => $cleaned, 'reused' => $app['reused'],
+        ]);
+    }
+    /** Create (or renew) the "PFCentral sign-in" app in the MSP's own tenant and save it in Sign-in settings. */
+    private function mspCallback(Request $request, array $pending, array $msp)
+    {
+        $back = $msp['back'] ?? null;
+        if ($request->query('error')) {
+            $why = strtok((string) $request->query('error_description', 'The sign-in was cancelled.'), "\r\n");
+
+            return $this->page('Not set up', "Microsoft didn't allow the setup: {$why}", 400, ['retry' => $pending['t'], 'back' => $back]);
+        }
+        $setup = MicrosoftSetup::make();
+        try {
+            $admin = $setup->redeem((string) $request->query('code', ''), $pending);
+            $tid = strtolower($admin['tid']);
+            $reuse = strtolower((string) MspSignIn::tenantId()) === $tid ? MspSignIn::clientId() : null;
+            $app = $setup->provision((string) $msp['cb'], $reuse, self::MSP_APP_NAME,
+                'Created by PFCentral (CFBTEL) for "Sign in with Microsoft 365" to the PFCentral console. Deleting it stops that sign-in.');
+        } catch (\Throwable $e) {
+            Log::warning('PFCentral sign-in setup failed', ['error' => $e->getMessage()]);
+
+            return $this->page('Not set up', $e instanceof VpnException ? $e->getMessage() : 'Microsoft returned an error. Please try again.', 502, ['retry' => $pending['t'], 'back' => $back]);
+        }
+
+        $oldKey = MspSignIn::clientId() === $app['client_id'] ? MspSignIn::get('secret_key_id') : null;
+        if ($reuse === null && MspSignIn::tenantId() && strtolower((string) MspSignIn::tenantId()) !== $tid) {
+            MspSignIn::setGroups([]); // groups belong to the old tenant
+        }
+        MspSignIn::set('tenant_id', $tid);
+        MspSignIn::set('client_id', $app['client_id']);
+        MspSignIn::setClientSecret($app['client_secret']);
+        MspSignIn::set('app_object_id', $app['object_id']);
+        MspSignIn::set('secret_key_id', $app['key_id']);
+        MspSignIn::set('secret_expires_at', $app['expires_at']->toIso8601String());
+        MspSignIn::set('auto_setup_at', (string) now()->getTimestamp());
+        MspSignIn::set('auto_setup_ms', (string) (int) floor(microtime(true) * 1000));
+        if ($oldKey && $oldKey !== $app['key_id']) {
+            $setup->removeSecret($app['object_id'], $oldKey);
+        }
+        $cleaned = $setup->removeSetupAccess();
+        Log::info('PFCentral sign-in app ' . ($app['reused'] ? 'renewed' : 'created'), ['tid' => $tid, 'by' => $admin['upn'], 'app' => $app['client_id']]);
+
+        return $this->page('Microsoft 365 sign-in is set up', '', 200, [
+            'doneMsp' => true, 'admin' => $admin, 'reused' => $app['reused'], 'cleaned' => $cleaned,
+            'appName' => self::MSP_APP_NAME, 'expires' => $app['expires_at'], 'back' => $back,
         ]);
     }
 }

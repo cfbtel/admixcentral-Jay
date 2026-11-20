@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.12.3
+- **Sign-in → "Set up automatically with Microsoft 365"**: one click, sign in as a Global Administrator of your
+  Microsoft 365, and PFCentral creates the "PFCentral sign-in" app in your tenant with the sign-in address,
+  permissions (with admin consent) and secret already filled in, then saves the tenant and app on the Sign-in page.
+  Nothing to copy. Running it again renews the secret. Then pick the groups and turn it on. Setting it up by hand
+  is still there under "Set up by hand (advanced)". It uses the same CFBTEL setup app as the VPN's one-click setup.
+
 ### Fixed — v0.12.2
 - Updates rebuild the look of the app again. On this server the rebuild step stopped with "vite: not found", so new
   colours and layouts never appeared after an update. If that happens now, the updater runs Vite directly, and if

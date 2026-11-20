@@ -24,6 +24,7 @@ Route::middleware(['auth', 'verified', App\Http\Middleware\CheckRole::class . ':
     Route::get('/system/sign-in', [App\Http\Controllers\MspSignInController::class, 'show'])->name('system.signin');
     Route::post('/system/sign-in', [App\Http\Controllers\MspSignInController::class, 'save'])->name('system.signin.save');
     Route::get('/system/sign-in/groups', [App\Http\Controllers\MspSignInController::class, 'searchGroups'])->name('system.signin.groups');
+    Route::post('/system/sign-in/auto-setup', [App\Http\Controllers\MspSignInController::class, 'autoSetup'])->name('system.signin.auto');
 });
 
 Route::get('/', function () {

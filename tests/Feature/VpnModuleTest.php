@@ -193,10 +193,10 @@ class FakeSetup extends MicrosoftSetup
         return ['name' => 'Acme Inc', 'domains' => ['acme.com', 'acme.onmicrosoft.com']];
     }
 
-    public function provision(string $redirectUri, ?string $existingAppId = null): array
+    public function provision(string $redirectUri, ?string $existingAppId = null, string $appName = self::APP_NAME, ?string $notes = null): array
     {
         $this->n++;
-        $this->calls[] = 'provision ' . ($existingAppId ?? 'new') . " {$redirectUri}";
+        $this->calls[] = 'provision ' . ($existingAppId ?? 'new') . " {$redirectUri}" . ($appName !== self::APP_NAME ? " [{$appName}]" : '');
         return ['client_id' => 'dddddddd-0000-0000-0000-000000000001', 'client_secret' => "auto-secret-{$this->n}", 'object_id' => 'eeeeeeee-0000-0000-0000-000000000001',
             'key_id' => "ffffffff-0000-0000-0000-00000000000{$this->n}", 'expires_at' => \Carbon\CarbonImmutable::now()->addYears(2), 'reused' => $existingAppId !== null];
     }
@@ -858,6 +858,42 @@ class VpnModuleTest extends TestCase
         $this->post(self::PORTAL . '/vpn/setup', ['t' => $q['t']])->assertRedirect('https://login.microsoftonline.com/setup');
         $state = session('vpn_ms_setup')['state'];
         return $this->get(self::PORTAL . '/vpn/setup/callback?' . http_build_query(['code' => $code, 'state' => $state]));
+    }
+
+    public function test_one_click_setup_for_pfcentral_sign_in_creates_the_msp_app_and_saves_it(): void
+    {
+        $w = $this->world();
+        // Without CFBTEL's setup app the button isn't offered.
+        $this->console($w['global'])->get('/system/sign-in')->assertOk()->assertDontSee(route('system.signin.auto'), false);
+
+        $setup = new FakeSetup();
+        MicrosoftSetup::$factory = fn () => $setup;
+        $this->console($w['global'])->get('/system/sign-in')->assertOk()->assertSee(route('system.signin.auto'), false);
+        $this->console($w['acmeAdmin'])->post('/system/sign-in/auto-setup')->assertForbidden();
+
+        $link = $this->console($w['global'])->post('/system/sign-in/auto-setup')->headers->get('Location');
+        $this->assertStringStartsWith('https://vpn.test/vpn/setup?t=', $link);
+        $callback = route('login.microsoft.callback');
+
+        $this->runSetup($link)->assertOk()->assertSee('Microsoft 365 sign-in is set up')->assertSee('PFCentral sign-in');
+        $this->assertSame(['redeem c1', "provision new {$callback} [PFCentral sign-in]", 'cleanup'], $setup->calls);
+        $this->assertSame(self::ACME_TID, \App\Services\Auth\MspSignIn::tenantId());
+        $this->assertSame('dddddddd-0000-0000-0000-000000000001', \App\Services\Auth\MspSignIn::clientId());
+        $this->assertSame('auto-secret-1', \App\Services\Auth\MspSignIn::clientSecret());
+        $this->assertNull(\App\Models\Vpn\VpnCompany::where('ms_tenant_id', self::ACME_TID)->first(), 'no company was touched');
+
+        // The link works once.
+        $this->get($link)->assertStatus(400);
+
+        // Running it again reuses the app and replaces its secret.
+        $setup->calls = [];
+        $link = $this->console($w['global'])->post('/system/sign-in/auto-setup')->headers->get('Location');
+        $this->runSetup($link, 'c2')->assertOk();
+        // (The scheme of the console address may differ in tests after a request on the VPN page's https host.)
+        $calls = array_map(fn ($c) => preg_replace('#https?://localhost#', 'console', $c), $setup->calls);
+        $this->assertSame(['redeem c2', 'provision dddddddd-0000-0000-0000-000000000001 console/login/microsoft/callback [PFCentral sign-in]', 'remove-secret ffffffff-0000-0000-0000-000000000001', 'cleanup'], $calls);
+        $this->assertSame('auto-secret-2', \App\Services\Auth\MspSignIn::clientSecret());
+        $this->console($w['global'])->get('/system/sign-in')->assertOk()->assertSee('Connected')->assertSee('Run the automatic setup again');
     }
 
     public function test_one_click_setup_creates_the_companys_own_app_and_saves_it(): void

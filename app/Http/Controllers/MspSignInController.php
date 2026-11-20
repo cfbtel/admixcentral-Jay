@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\Auth\MspSignIn;
+use App\Http\Controllers\Vpn\MicrosoftSetupController;
 use App\Services\Vpn\Microsoft;
+use App\Services\Vpn\MicrosoftSetup;
 use App\Services\Vpn\VpnException;
 use App\Services\Vpn\VpnSettings;
 use Illuminate\Http\Request;
@@ -23,7 +25,24 @@ class MspSignInController extends Controller
             'vpnApp' => VpnSettings::clientId(),
             'vpnAppReady' => VpnSettings::clientId() && VpnSettings::hasClientSecret(),
             'redirectUri' => MspSignIn::redirectUri(),
+            'autoReady' => MicrosoftSetup::make()->configured(),
+            'autoSetupAt' => MspSignIn::get('auto_setup_at'),
+            'secretExpires' => MspSignIn::get('secret_expires_at'),
         ]);
+    }
+
+    /** One click: a Global Administrator signs in to Microsoft and the app is created with everything filled in. */
+    public function autoSetup(Request $request)
+    {
+        if (!MicrosoftSetup::make()->configured()) {
+            return back()->withErrors(['auto' => 'Automatic setup needs the CFBTEL setup app (VPN Access → settings → One-click Microsoft 365 setup).']);
+        }
+
+        return redirect()->away(MicrosoftSetupController::mspLink(
+            (string) $request->user()->email,
+            MspSignIn::redirectUri(),
+            route('system.signin'),
+        ));
     }
 
     public function save(Request $request)

@@ -210,7 +210,7 @@ class MicrosoftSetup
      * @param string|null $existingAppId the company's app from an earlier setup, reused when it still exists
      * @return array{client_id: string, client_secret: string, object_id: string, key_id: string, expires_at: \Carbon\CarbonImmutable, reused: bool}
      */
-    public function provision(string $redirectUri, ?string $existingAppId = null): array
+    public function provision(string $redirectUri, ?string $existingAppId = null, string $appName = self::APP_NAME, ?string $notes = null): array
     {
         $graph = $this->graphServicePrincipal();
         $required = [[
@@ -239,9 +239,9 @@ class MicrosoftSetup
             }
         } else {
             $res = $this->call('post', '/applications', [
-                'displayName' => self::APP_NAME,
+                'displayName' => $appName,
                 'signInAudience' => 'AzureADMyOrg',
-                'notes' => 'Created by AdmixCentral for the CFBTEL staff VPN sign-in. Deleting it stops VPN sign-in with Microsoft 365.',
+                'notes' => $notes ?? 'Created by PFCentral for the CFBTEL staff VPN sign-in. Deleting it stops VPN sign-in with Microsoft 365.',
                 'web' => ['redirectUris' => [$redirectUri]],
                 'requiredResourceAccess' => $required,
             ]);
@@ -253,7 +253,7 @@ class MicrosoftSetup
 
         $expires = \Carbon\CarbonImmutable::now()->addYears(self::SECRET_YEARS)->startOfSecond();
         $pw = $this->callRetrying('post', "/applications/{$app['id']}/addPassword", [
-            'passwordCredential' => ['displayName' => 'AdmixCentral VPN', 'endDateTime' => $expires->toIso8601ZuluString()],
+            'passwordCredential' => ['displayName' => $appName === self::APP_NAME ? 'PFCentral VPN' : 'PFCentral', 'endDateTime' => $expires->toIso8601ZuluString()],
         ], 'create the app secret')->json();
         if (empty($pw['secretText']) || empty($pw['keyId'])) {
             throw new VpnException('Microsoft didn\'t return the app secret.');
