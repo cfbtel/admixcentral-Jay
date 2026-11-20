@@ -864,49 +864,116 @@ class VpnModuleTest extends TestCase
         $this->staffSignIn('carl')->assertForbidden();
     }
 
-    public function test_a_firewall_group_limits_that_firewall_to_its_members(): void
+    public function test_access_groups_need_two_firewalls(): void
+    {
+        $w = $this->world();
+        $site = $this->onboard($w);
+        $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertSee('for companies with 2 or more firewalls')->assertDontSee('+ New access group');
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/access-groups", ['name' => 'Staff', 'sites' => [$site->id], 'everyone' => 1])->assertSessionHas('error');
+        $this->assertSame(0, \App\Models\Vpn\VpnAccessGroup::count());
+    }
+
+    public function test_access_groups_decide_who_uses_which_firewall(): void
     {
         $w = $this->world();
         [$site1, $site2] = $this->twoSites($w);
         $this->grant($w['global'], $w['acme'], 'ann');
         $this->grant($w['global'], $w['acme'], 'bob');
-        $this->ms->groups = [self::G_SITE2 => ['name' => 'Branch VPN', 'members' => [$this->ms->people['ann']['oid'], $this->ms->people['carl']['oid']]]];
-        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/groups/assign", ['group_id' => self::G_SITE2, 'target' => (string) $site2->id])->assertSessionHas('success');
-        $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertSee('members of <strong>Branch VPN</strong>', false);
+        $ann = VpnUser::where('upn', 'ann@acme.com')->firstOrFail();
+        $base = "/companies/{$w['acme']->id}/vpn";
 
-        // Bob (not in the group) only sees the main firewall and can't add a device on the branch.
+        // No groups yet: both firewalls open to everyone with access.
+        $this->console($w['acmeAdmin'])->get($base)->assertOk()->assertSee('No groups yet')->assertSee('+ New access group');
         $this->staffSignIn('bob')->assertRedirect();
-        $this->get(self::PORTAL . '/vpn')->assertOk()->assertDontSee('Acme Branch');
-        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site2->id, 'name' => 'Bob phone', 'platform' => 'iphone'])->assertForbidden();
-        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Bob phone', 'platform' => 'iphone'])->assertOk();
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Bob old phone', 'platform' => 'iphone'])->assertOk();
 
-        // Ann (in the group) can use both.
+        // First group: the branch for Ann only. The main office is now blocked.
+        $this->console($w['acmeReader'])->post("$base/access-groups", ['name' => 'Branch', 'sites' => [$site2->id], 'users' => [$ann->id]])->assertForbidden();
+        $this->console($w['acmeAdmin'])->post("$base/access-groups", ['name' => 'Branch', 'sites' => [$site2->id], 'users' => [$ann->id]])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'Firewalls in no group are blocked: Acme HQ'));
+        $this->console($w['acmeAdmin'])->get($base)->assertOk()->assertSee('blocked — not in any group')->assertSee('group Branch');
+        $branch = \App\Models\Vpn\VpnAccessGroup::where('name', 'Branch')->firstOrFail();
+        $this->console($w['acmeAdmin'])->post("$base/access-groups", ['name' => 'Branch', 'sites' => [$site1->id]])->assertSessionHasErrors('name');
+
+        // Bob is in no group: no firewall for him, and the sync takes his old device off the main office.
+        $this->staffSignIn('bob')->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('No VPN location for you yet');
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Bob phone', 'platform' => 'iphone'])->assertForbidden();
+        $this->artisan('vpn:sync')->assertSuccessful();
+        $this->assertSame(0, VpnDevice::where('name', 'Bob old phone')->whereNull('revoked_at')->count());
+
+        // Ann sees only the branch.
         $this->staffSignIn('ann')->assertRedirect();
-        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch');
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch')->assertDontSee('Acme HQ');
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Ann phone', 'platform' => 'iphone'])->assertForbidden();
         $this->post(self::PORTAL . '/vpn/devices', ['site' => $site2->id, 'name' => 'Ann laptop', 'platform' => 'windows'])->assertOk();
 
-        // Carl isn't on the list but the branch group gives him access to the branch only.
-        $this->staffSignIn('carl')->assertRedirect();
-        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch');
-        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Carl phone', 'platform' => 'iphone'])->assertOk(); // main has no group: open to everyone with access
+        // A second group opens the main office to everyone with VPN access.
+        $this->console($w['acmeAdmin'])->post("$base/access-groups", ['name' => 'Main office', 'sites' => [$site1->id], 'everyone' => 1])->assertSessionHas('success');
+        $this->staffSignIn('bob')->assertRedirect();
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site1->id, 'name' => 'Bob phone', 'platform' => 'iphone'])->assertOk();
 
-        // Microsoft down: the sync removes nothing.
+        // A Microsoft 365 group linked to Branch: Carl isn't on the list but gets VPN access and both firewalls.
+        $this->ms->groups = [self::G_SITE2 => ['name' => 'Branch VPN', 'members' => [$this->ms->people['carl']['oid']]]];
+        $this->console($w['acmeAdmin'])->get("$base?gq=branch&groups=1")->assertOk()->assertSee('Access group: Branch');
+        $this->console($w['acmeAdmin'])->post("$base/groups/assign", ['group_id' => self::G_SITE2, 'target' => 'group:' . $branch->id])->assertSessionHas('success');
+        $this->assertSame(['microsoft', self::G_SITE2], [$branch->links()->value('provider'), $branch->links()->value('external_id')]);
+        $this->staffSignIn('carl')->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch')->assertSee('Acme HQ');
+        $this->post(self::PORTAL . '/vpn/devices', ['site' => $site2->id, 'name' => 'Carl laptop', 'platform' => 'windows'])->assertOk();
+
+        // Ann is taken out of Branch: the sync removes her branch device; she keeps VPN access (added by hand).
+        $this->console($w['acmeAdmin'])->post("$base/access-groups/{$branch->id}", ['name' => 'Branch', 'sites' => [$site2->id], 'users' => []])->assertSessionHas('success');
+        // Microsoft down: nobody's branch device goes (they might still be in the linked Microsoft group).
         $this->ms->down = true;
         $this->ms->groups[self::G_SITE2]['members'] = [];
         $this->artisan('vpn:sync')->assertSuccessful();
-        $this->assertSame(1, VpnDevice::where('vpn_site_id', $site2->id)->whereNull('revoked_at')->count());
+        $this->assertSame(1, VpnDevice::where('name', 'Ann laptop')->whereNull('revoked_at')->count());
+        $this->assertSame(1, VpnDevice::where('name', 'Carl laptop')->whereNull('revoked_at')->count());
 
-        // Ann leaves the group: her branch device goes, she keeps access (added by hand); Carl loses access.
+        // Microsoft back: Ann isn't in Branch any more (devices go, she keeps VPN access, added by hand);
+        // Carl left the Microsoft group and loses access.
         $this->ms->down = false;
         $this->artisan('vpn:sync')->assertSuccessful();
-        $this->assertSame(0, VpnDevice::where('vpn_site_id', $site2->id)->whereNull('revoked_at')->count());
+        $this->assertSame(0, VpnDevice::where('name', 'Ann laptop')->whereNull('revoked_at')->count());
         $this->assertNotNull(VpnUser::where('upn', 'ann@acme.com')->first());
         $this->assertNull(VpnUser::where('upn', 'carl@acme.com')->first());
-        $this->assertSame(['tun_wg0'], array_values(array_unique(array_column($this->fw->peers, 'tunnel'))));
+        $this->assertSame(0, VpnDevice::where('name', 'Carl laptop')->whereNull('revoked_at')->count());
 
-        // Removing the group opens the branch to everyone with access again.
-        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/groups/clear", ['target' => (string) $site2->id])->assertSessionHas('success');
+        // Deleting every group opens both firewalls to everyone again.
+        foreach (\App\Models\Vpn\VpnAccessGroup::all() as $g) {
+            $this->console($w['acmeAdmin'])->post("$base/access-groups/{$g->id}/delete")->assertSessionHas('success');
+        }
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch')->assertSee('Acme HQ');
+    }
+
+    public function test_old_firewall_groups_become_access_groups_without_closing_anything(): void
+    {
+        $w = $this->world();
+        [$site1, $site2] = $this->twoSites($w);
+        $this->artisan('migrate:rollback', ['--path' => 'database/migrations/2026_11_20_000001_create_vpn_access_groups.php', '--force' => true])->assertSuccessful();
+        \Illuminate\Support\Facades\DB::table('vpn_sites')->where('id', $site2->id)->update(['access_group_id' => strtoupper(self::G_SITE2), 'access_group_name' => 'Branch VPN']);
+        $this->artisan('migrate', ['--path' => 'database/migrations/2026_11_20_000001_create_vpn_access_groups.php', '--force' => true])->assertSuccessful();
+
+        $groups = \App\Services\Vpn\VpnAccess::groups($w['acme']->id);
+        $this->assertSame(['Acme Branch', 'Everyone'], $groups->pluck('name')->all());
+        $this->assertSame([$site2->id], $groups[0]->sites->pluck('id')->all());
+        $this->assertSame(self::G_SITE2, $groups[0]->links->first()->external_id);
+        $this->assertTrue($groups[1]->everyone);
+        $this->assertSame([$site1->id], $groups[1]->sites->pluck('id')->all());
         $this->assertNull($site2->fresh()->access_group_id);
+    }
+
+    public function test_email_accounts_can_be_put_in_access_groups(): void
+    {
+        $w = $this->world();
+        [$site1, $site2] = $this->twoSites($w);
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/invite", ['name' => 'Dana', 'email' => 'dana@acme.com'])->assertRedirect();
+        $dana = VpnUser::where('upn', 'dana@acme.com')->firstOrFail();
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/access-groups", ['name' => 'Branch', 'sites' => [$site2->id], 'users' => [$dana->id]])->assertSessionHas('success');
+        $sites = app(\App\Services\Vpn\VpnAccess::class)->sitesFor($dana->fresh());
+        $this->assertSame([$site2->id], $sites->pluck('id')->all());
     }
 
     public function test_pfsense_driver_installs_the_wireguard_package_when_missing(): void

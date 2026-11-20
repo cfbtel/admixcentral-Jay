@@ -74,21 +74,36 @@ In AdmixCentral, open **VPN Access** in the sidebar (global admins). Enter:
 - the portal host name;
 - the device limit per person.
 
-## 1a-2. Microsoft 365 groups (optional)
+## 1a-2. Access groups and Microsoft 365 groups (optional)
 
-On a company's VPN page → **Who has VPN access → Microsoft 365 groups**, search the company's groups (e.g. "VPN")
-and use one:
-* **Whole company:** members of the group get VPN access without being added one by one; they're added the first
+**Access groups** (company VPN page → **Who has VPN access → Access groups**) decide which firewalls each person
+can use. They're offered when the company has **2 or more firewalls with VPN**; with one firewall everyone with VPN
+access uses it.
+* A group has a name, **one or more firewalls**, and members: **everyone with VPN access**, people picked by hand
+  (Microsoft 365 or email-and-password accounts), and/or **linked sign-in provider groups**.
+* A person can use the firewalls of **all** their groups.
+* **No groups:** every firewall is open to everyone with VPN access. **Once a company has a group, firewalls in no
+  group are blocked** (shown in red in the Firewalls table and in the groups box). Deleting the last group opens
+  everything again.
+* Linked groups are stored as provider + the provider's group id (`vpn_access_group_links`). Microsoft 365 is the
+  provider today; another SSO (Google, Okta, any OpenID Connect directory) is added as a new provider without
+  changing groups.
+* Upgrading to v0.8.5 turns each old "only for one firewall" Microsoft group into an access group for that
+  firewall, and puts the company's other firewalls in an "Everyone" group, so nobody loses access.
+
+**Microsoft 365 groups:** search the company's groups (e.g. "VPN") and use one:
+* **Whole company (VPN access):** members get VPN access without being added one by one; they're added the first
   time they sign in ("through group"). Nested groups count.
-* **Only for one firewall:** only members of that group can use that firewall (it's hidden from everyone else, and
-  adding a device there is refused). Its members also get VPN access for it even when they aren't in the company
-  group. Firewalls without a group are open to everyone with VPN access in the company.
-* Leaving a group removes the access within 15 minutes (`vpn:sync`): people who came in through a group lose
-  access when they're in none of the company's groups any more; anyone loses their devices on a firewall whose
-  group they left. If Microsoft can't be reached, nothing is removed.
-* People added by hand keep company access. Email-and-password accounts can use firewalls without a group only.
-* Needs the application permission `GroupMember.Read.All`. The one-click setup adds it; companies set up before
-  v0.8.3 run **Run automatic setup again** once. Apps entered by hand need it added with admin consent.
+* **Access group: …:** links it to that access group. Its members are members of the access group (and get VPN
+  access for it even when they aren't in the company group).
+
+Changes reach devices within 15 minutes (`vpn:sync`): people who came in through a Microsoft group lose access when
+they're in none of the company's groups any more, and anyone loses their devices on firewalls none of their access
+groups allow. If Microsoft can't be reached, only devices that no group could allow are removed; the rest waits for
+Microsoft. People added by hand keep VPN access.
+
+Needs the application permission `GroupMember.Read.All`. The one-click setup adds it; companies set up before
+v0.8.3 run **Run automatic setup again** once. Apps entered by hand need it added with admin consent.
 
 ## 1b. CFBTEL's setup app for one-click setup (once, in CFBTEL's Microsoft Entra)
 

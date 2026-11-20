@@ -110,6 +110,7 @@ class PortalController extends Controller
             'max' => VpnSettings::maxDevices(),
             'platforms' => self::PLATFORMS,
             'notice' => $notice,
+            'noGroup' => $sites->isEmpty() && $this->vpn->readySites($user->company_id)->isNotEmpty(),
         ], $status);
     }
 

@@ -67,6 +67,11 @@ class VpnUser extends Model
         return $this->hasMany(VpnDevice::class);
     }
 
+    public function accessGroups()
+    {
+        return $this->belongsToMany(VpnAccessGroup::class, 'vpn_access_group_users', 'vpn_user_id', 'vpn_access_group_id');
+    }
+
     public function activeDevices()
     {
         return $this->hasMany(VpnDevice::class)->whereNull('revoked_at');

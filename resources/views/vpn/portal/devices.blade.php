@@ -1,6 +1,9 @@
 @extends('vpn.portal.layout', ['title' => 'CFBTEL VPN – Your devices'])
 @section('body')
-    @if($sites->isEmpty())
+    @if($sites->isEmpty() && $noGroup)
+        <h1>No VPN location for you yet</h1>
+        <p>You have VPN access at {{ $company?->name ?? 'your company' }}, but none of its locations is open to you yet. Ask your company's IT admin to add you to an access group, or contact <a href="mailto:help@cfbtel.com">help@cfbtel.com</a>.</p>
+    @elseif($sites->isEmpty())
         <h1>VPN not set up yet</h1>
         <p>{{ $company?->name ?? 'Your company' }}'s VPN isn't ready yet. Contact <a href="mailto:help@cfbtel.com">CFBTEL support</a>.</p>
     @else
@@ -26,6 +29,7 @@
                     <label>Office / site<select name="site">@foreach($sites as $s)<option value="{{ $s->id }}">{{ $s->firewall->name }}</option>@endforeach</select></label>
                 @else
                     <input type="hidden" name="site" value="{{ $sites->first()->id }}">
+                    <p class="small">Office / site: <strong>{{ $sites->first()->firewall->name }}</strong></p>
                 @endif
                 <label>Device name<input name="name" maxlength="32" placeholder="e.g. Work laptop" required pattern="[A-Za-z0-9 ._\-]{1,32}"></label>
                 <label>Type<select name="platform">@foreach($platforms as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></label>

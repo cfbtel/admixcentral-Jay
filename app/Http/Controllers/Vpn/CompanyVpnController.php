@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Vpn;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Firewall;
+use App\Models\Vpn\VpnAccessGroup;
+use App\Models\Vpn\VpnAccessGroupLink;
 use App\Models\Vpn\VpnAuditLog;
 use App\Models\Vpn\VpnCompany;
 use App\Models\Vpn\VpnDevice;
 use App\Models\Vpn\VpnSite;
 use App\Models\Vpn\VpnUser;
 use App\Services\Vpn\Microsoft;
+use App\Services\Vpn\VpnAccess;
 use App\Services\Vpn\VpnException;
 use App\Services\Vpn\VpnManager;
 use App\Services\Vpn\VpnSettings;
@@ -87,12 +90,16 @@ class CompanyVpnController extends Controller
         $setupReady = \App\Services\Vpn\MicrosoftSetup::make()->configured();
         $setupLink = $setupReady && $this->canManage($request, $company) ? MicrosoftSetupController::link($company, $this->actor($request)) : null;
         $sites = VpnSite::with('firewall')->where('company_id', $company->id)->get()->keyBy('firewall_id');
+        $accessGroups = VpnAccess::groups($company->id);
 
         return view('vpn.admin.company', [
             'company' => $company,
             'vc' => $vc,
             'firewalls' => Firewall::where('company_id', $company->id)->orderBy('name')->get(),
             'sites' => $sites,
+            'accessGroups' => $accessGroups,
+            'canMakeGroups' => VpnAccess::canMakeGroups($company->id),
+            'siteAccess' => VpnAccess::describeSites($sites, $accessGroups),
             'users' => VpnUser::where('company_id', $company->id)->withCount('activeDevices')->orderBy('name')->get(),
             'devices' => VpnDevice::with(['user', 'site.firewall'])->whereIn('vpn_site_id', $sites->pluck('id'))->orderByDesc('created_at')->get(),
             'audit' => VpnAuditLog::where('company_id', $company->id)->orderByDesc('id')->limit(40)->get(),
@@ -220,12 +227,17 @@ class CompanyVpnController extends Controller
         return back()->with('success', 'Saved.');
     }
 
-    /** Use a Microsoft 365 group for the whole company ("company") or for one firewall (a VPN site id). */
+    /** Use a Microsoft 365 group for the whole company ("company") or link it to an access group ("group:<id>"). */
     public function assignGroup(Request $request, Company $company)
     {
         $this->authorizeManage($request, $company);
         $vc = VpnCompany::forCompany($company);
         $v = $request->validate(['group_id' => ['required', 'string', 'max:36'], 'target' => ['required', 'string', 'max:20']]);
+        $access = null;
+        if ($v['target'] !== 'company') {
+            $access = preg_match('/^group:(\d+)$/', $v['target'], $m) ? VpnAccessGroup::where('company_id', $company->id)->find((int) $m[1]) : null;
+            abort_unless($access, 404);
+        }
         if (!$vc->ms_tenant_id || !Microsoft::isGuid($v['group_id'])) {
             return back()->with('error', 'Connect Microsoft 365 first, then pick a group.');
         }
@@ -237,32 +249,94 @@ class CompanyVpnController extends Controller
         if (!$g) {
             return back()->with('error', 'That group wasn\'t found in this company\'s Microsoft 365.');
         }
-        if ($v['target'] === 'company') {
+        if (!$access) {
             $vc->update(['access_group_id' => $g['id'], 'access_group_name' => $g['name']]);
-            $where = 'the whole company';
-        } else {
-            $site = VpnSite::with('firewall')->where('company_id', $company->id)->findOrFail((int) $v['target']);
-            $site->update(['access_group_id' => $g['id'], 'access_group_name' => $g['name']]);
-            $where = $site->firewall->name;
+            VpnAuditLog::record($company->id, $this->actor($request), "group_set {$g['name']} for the whole company");
+            return redirect()->route('vpn.company', $company)->with('success', "Members of the Microsoft 365 group “{$g['name']}” now get VPN access.");
         }
-        VpnAuditLog::record($company->id, $this->actor($request), "group_set {$g['name']} for {$where}");
-        return redirect()->route('vpn.company', $company)->with('success', "Microsoft 365 group “{$g['name']}” now controls VPN access for {$where}.");
+        VpnAccessGroupLink::updateOrCreate(
+            ['vpn_access_group_id' => $access->id, 'provider' => 'microsoft', 'external_id' => strtolower($g['id'])],
+            ['external_name' => $g['name']],
+        );
+        VpnAuditLog::record($company->id, $this->actor($request), "access_group_linked {$access->name} ← Microsoft 365 {$g['name']}");
+        return redirect()->route('vpn.company', $company)->with('success', "Members of the Microsoft 365 group “{$g['name']}” are now in the access group “{$access->name}”.");
     }
 
     public function clearGroup(Request $request, Company $company)
     {
         $this->authorizeManage($request, $company);
-        $target = (string) $request->input('target');
-        if ($target === 'company') {
-            VpnCompany::forCompany($company)->update(['access_group_id' => null, 'access_group_name' => null]);
-            $where = 'the whole company';
-        } else {
-            $site = VpnSite::with('firewall')->where('company_id', $company->id)->findOrFail((int) $target);
-            $site->update(['access_group_id' => null, 'access_group_name' => null]);
-            $where = $site->firewall->name;
+        VpnCompany::forCompany($company)->update(['access_group_id' => null, 'access_group_name' => null]);
+        VpnAuditLog::record($company->id, $this->actor($request), 'group_cleared for the whole company');
+        return redirect()->route('vpn.company', $company)->with('success', 'No Microsoft 365 group for the whole company any more. People who came in through it lose access at the next sync unless another group still includes them.');
+    }
+
+    /** Create (no id) or change an access group: name, firewalls, everyone / people picked by hand. */
+    public function saveAccessGroup(Request $request, Company $company, ?VpnAccessGroup $group = null)
+    {
+        $this->authorizeManage($request, $company);
+        if ($group) {
+            abort_unless($group->company_id === $company->id, 404);
+        } elseif (!VpnAccess::canMakeGroups($company->id)) {
+            return back()->with('error', 'Access groups need at least ' . VpnAccess::MIN_FIREWALLS_FOR_GROUPS . ' firewalls with VPN. With one firewall, everyone with VPN access uses it.');
         }
-        VpnAuditLog::record($company->id, $this->actor($request), "group_cleared for {$where}");
-        return redirect()->route('vpn.company', $company)->with('success', "No Microsoft 365 group for {$where} any more. People who came in through it lose access at the next sync unless another group still includes them.");
+        $v = $request->validate([
+            'name' => ['required', 'string', 'max:80', \Illuminate\Validation\Rule::unique('vpn_access_groups', 'name')->where('company_id', $company->id)->ignore($group?->id)],
+            'sites' => ['required', 'array', 'min:1'],
+            'sites.*' => ['integer'],
+            'users' => ['array'],
+            'users.*' => ['integer'],
+            'everyone' => ['nullable', 'boolean'],
+        ], ['sites.required' => 'Pick at least one firewall for the group.']);
+        $siteIds = VpnSite::where('company_id', $company->id)->whereIn('id', $v['sites'])->pluck('id');
+        if ($siteIds->isEmpty()) {
+            return back()->withInput()->with('error', 'Pick at least one of this company\'s firewalls.');
+        }
+        $userIds = VpnUser::where('company_id', $company->id)->whereIn('id', $v['users'] ?? [])->pluck('id');
+        $first = !$group && !VpnAccessGroup::where('company_id', $company->id)->exists();
+        $group ??= new VpnAccessGroup(['company_id' => $company->id]);
+        $group->fill(['name' => trim($v['name']), 'everyone' => (bool) ($v['everyone'] ?? false)])->save();
+        $group->sites()->sync($siteIds);
+        $group->users()->sync($userIds);
+        VpnAuditLog::record($company->id, $this->actor($request), ($group->wasRecentlyCreated ? 'access_group_created ' : 'access_group_changed ') . $group->name
+            . ' (' . $siteIds->count() . ' firewall(s), ' . ($group->everyone ? 'everyone' : $userIds->count() . ' person(s)') . ')');
+
+        $msg = "Access group “{$group->name}” saved.";
+        $blocked = $this->blockedFirewalls($company->id);
+        if ($blocked) {
+            $msg .= ($first ? ' Access groups are now on: ' : ' ') . 'Firewalls in no group are blocked: ' . implode(', ', $blocked) . '.';
+        }
+        return redirect()->route('vpn.company', $company)->with('success', $msg . ' People lose devices on firewalls their groups don\'t allow at the next sync (within 15 minutes).');
+    }
+
+    public function deleteAccessGroup(Request $request, Company $company, VpnAccessGroup $group)
+    {
+        $this->authorizeManage($request, $company);
+        abort_unless($group->company_id === $company->id, 404);
+        $name = $group->name;
+        $group->delete();
+        VpnAuditLog::record($company->id, $this->actor($request), "access_group_deleted {$name}");
+        $left = VpnAccessGroup::where('company_id', $company->id)->exists();
+        $blocked = $left ? $this->blockedFirewalls($company->id) : [];
+        return redirect()->route('vpn.company', $company)->with('success', "Access group “{$name}” deleted."
+            . ($left ? ($blocked ? ' Firewalls in no group are blocked: ' . implode(', ', $blocked) . '.' : '') : ' No access groups left: every firewall is open to everyone with VPN access again.'));
+    }
+
+    public function unlinkAccessGroup(Request $request, Company $company, VpnAccessGroupLink $link)
+    {
+        $this->authorizeManage($request, $company);
+        $group = $link->group;
+        abort_unless($group && $group->company_id === $company->id, 404);
+        $link->delete();
+        VpnAuditLog::record($company->id, $this->actor($request), "access_group_unlinked {$group->name} ← {$link->providerName()} {$link->external_name}");
+        return redirect()->route('vpn.company', $company)->with('success', "“{$link->external_name}” is no longer linked to “{$group->name}”. Its members lose that access at the next sync.");
+    }
+
+    /** Names of the company's VPN firewalls that are in no access group. @return string[] */
+    private function blockedFirewalls(int $companyId): array
+    {
+        return VpnSite::with('firewall')->where('company_id', $companyId)
+            ->whereNotIn('id', \Illuminate\Support\Facades\DB::table('vpn_access_group_sites')->select('vpn_site_id'))
+            ->get()->map(fn ($s) => $s->firewall?->name ?? "site {$s->id}")->all();
     }
 
     public function removeOwnApp(Request $request, Company $company)

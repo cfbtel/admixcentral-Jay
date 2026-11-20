@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.8.5
+- **VPN access groups.** A company with 2 or more VPN firewalls can make groups: a name, one or more firewalls, and
+  members (everyone with VPN access, people picked by hand, and/or linked Microsoft 365 groups). People use the
+  firewalls of all their groups. Once a company has a group, firewalls in no group are blocked; with no groups
+  everything stays open as before. Linked groups are stored per sign-in provider so other SSO can be added later.
+  The sync removes devices on firewalls a person's groups no longer allow. The old "Microsoft 365 group for one
+  firewall" setting is replaced: existing ones become access groups (other firewalls go into an "Everyone" group).
+- Staff page: people with VPN access but no firewall get a clear message; with one location its name is shown.
+
+### Changed — v0.8.5
+- Staff page support address is help@cfbtel.com.
+
 ### Changed — v0.8.4
 - The staff page's Windows steps now install **CFBTEL VPN for Windows** instead of WireGuard. The link
   (`/vpn/download/windows`, `?arch=arm64` for ARM PCs) goes straight to the newest installer on the

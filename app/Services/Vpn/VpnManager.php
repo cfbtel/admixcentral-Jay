@@ -194,38 +194,46 @@ class VpnManager
             }
         }
 
-        // Microsoft 365 groups: people who came in through a group and left all of the company's groups lose
-        // access; anyone who left a firewall's group loses their devices on that firewall.
+        // Microsoft 365 groups: people who came in through a group and left every group the company uses lose access.
+        $member = []; // vpn user id => Microsoft 365 groups they're in (missing = unknown)
         if ($tenant && !$skipped && $vc && VpnAccess::usesGroups($vc)) {
             $ids = VpnAccess::groupIds($vc);
-            $siteGroups = VpnSite::where('company_id', $company->id)->whereNotNull('access_group_id')->get()
-                ->mapWithKeys(fn ($s) => [$s->id => ['group' => strtolower($s->access_group_id), 'name' => $s->access_group_name]]);
             $people = VpnUser::where('company_id', $company->id)->where('auth_type', 'microsoft')->whereNotNull('ms_oid')->get();
-            $member = [];
             try {
                 foreach ($people as $u) {
                     $member[$u->id] = $ms->memberOf($tenant, $u->ms_oid, $ids);
                 }
             } catch (\Throwable $e) {
-                $member = null;
+                $member = [];
                 $skipped = true;
                 Log::warning('VPN sync: Microsoft groups unavailable; group check skipped', ['company' => $company->id, 'error' => $e->getMessage()]);
             }
-            foreach ($member === null ? [] : $people as $u) {
-                $in = $member[$u->id];
-                if ($u->viaGroup() && !array_intersect($ids, $in)) {
+            foreach ($member ? $people : [] as $u) {
+                if ($u->viaGroup() && !array_intersect($ids, $member[$u->id])) {
                     VpnDevice::where('vpn_user_id', $u->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
                     VpnAuditLog::record($company->id, 'system', "vpn_access_removed {$u->upn} (no longer in the Microsoft 365 group)");
                     $u->delete();
+                }
+            }
+        }
+
+        // Access groups: devices on firewalls none of the person's groups allow (any more) are removed.
+        $groups = VpnAccess::groups($company->id);
+        if ($groups->isNotEmpty()) {
+            $linked = $groups->flatMap(fn ($g) => $g->links->where('provider', 'microsoft')->pluck('external_id'))->map(fn ($id) => strtolower($id))->unique()->values()->all();
+            $names = VpnSite::with('firewall')->where('company_id', $company->id)->get()->mapWithKeys(fn ($s) => [$s->id => $s->firewall?->name ?? "site {$s->id}"]);
+            foreach (VpnUser::where('company_id', $company->id)->with('activeDevices')->get() as $u) {
+                if ($u->activeDevices->isEmpty()) {
                     continue;
                 }
-                foreach ($siteGroups as $siteId => $g) {
-                    if (!in_array($g['group'], $in, true)) {
-                        $n = VpnDevice::where('vpn_user_id', $u->id)->where('vpn_site_id', $siteId)->whereNull('revoked_at')->update(['revoked_at' => now()]);
-                        if ($n) {
-                            VpnAuditLog::record($company->id, 'system', "devices_revoked {$u->upn} ({$n}, not in group {$g['name']})");
-                        }
-                    }
+                $needs = VpnAccess::needsMicrosoft($groups, $u);
+                // Microsoft 365 groups unknown (Microsoft down): assume the person is in all of them, so only
+                // devices that no group could allow are removed now.
+                $in = !$needs ? [] : ($member[$u->id] ?? $linked);
+                $allowed = VpnAccess::allowedSiteIds($groups, $u, $in);
+                foreach ($u->activeDevices->reject(fn ($d) => in_array($d->vpn_site_id, $allowed, true))->groupBy('vpn_site_id') as $siteId => $gone) {
+                    VpnDevice::whereIn('id', $gone->pluck('id'))->update(['revoked_at' => now()]);
+                    VpnAuditLog::record($company->id, 'system', "devices_revoked {$u->upn} ({$gone->count()} on {$names[$siteId]}: no access group allows it)");
                 }
             }
         }

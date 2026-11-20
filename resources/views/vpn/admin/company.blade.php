@@ -23,7 +23,7 @@
             <div class="{{ $card }}">
                 <p class="text-sm text-gray-600 dark:text-gray-300">
                     People this company gives VPN access sign in at <a class="text-indigo-600 dark:text-indigo-400 underline" href="{{ $portalUrl }}" target="_blank" rel="noopener">{{ $portalUrl }}</a>
-                    with their own Microsoft 365 account and add up to {{ \App\Services\Vpn\VpnSettings::maxDevices() }} devices (WireGuard or AmneziaVPN app).
+                    with their own Microsoft 365 account (or email and password) and add up to {{ \App\Services\Vpn\VpnSettings::maxDevices() }} devices (CFBTEL VPN for Windows, WireGuard or AmneziaVPN app).
                 </p>
             </div>
 
@@ -116,7 +116,7 @@
                                 </td>
                                 <td class="{{ $td }}">{{ $s?->endpoint ?? '—' }}</td>
                                 <td class="{{ $td }}">{{ $s?->subnet ?? '—' }}</td>
-                                <td class="{{ $td }} text-xs">@if(!$s) — @elseif($s->access_group_id) members of <strong>{{ $s->access_group_name }}</strong> @else everyone with VPN access @endif</td>
+                                <td class="{{ $td }} text-xs">@if(!$s) — @else @php $who = $siteAccess[$s->id] ?? ''; @endphp <span class="{{ str_starts_with($who, 'blocked') ? 'text-red-600 dark:text-red-400 font-semibold' : '' }}">{{ $who }}</span> @endif</td>
                                 <td class="{{ $td }} text-right">
                                     @if($s)
                                         <a href="{{ route('vpn.site', [$company, $s]) }}" class="{{ $btn2 }}">{{ $s->isReady() ? 'Settings' : 'Set up' }}</a>
@@ -137,26 +137,69 @@
             <div class="{{ $card }}">
                 <h3 class="text-lg font-bold mb-3">3. Who has VPN access</h3>
 
+                {{-- Access groups: which firewalls who may use --}}
+                @php $vpnSites = $sites->values(); $blockedSites = $vpnSites->filter(fn ($vs) => str_starts_with($siteAccess[$vs->id] ?? '', 'blocked')); @endphp
+                <div class="mb-6 p-4 rounded border border-gray-200 dark:border-gray-700 max-w-4xl">
+                    <p class="text-sm font-semibold">Access groups <span class="font-normal text-gray-500">— which firewalls each person can use</span></p>
+                    @if($accessGroups->isEmpty() && !$canMakeGroups)
+                        <p class="text-xs text-gray-500 mt-2">Access groups are for companies with 2 or more firewalls with VPN. With one firewall, everyone with VPN access uses it.</p>
+                    @else
+                        <p class="text-xs text-gray-500 mt-1">A group names one or more firewalls and its members: everyone with VPN access, people picked from the list below, and/or Microsoft 365 groups. A person can use the firewalls of all their groups. @if($accessGroups->isEmpty())<strong>No groups yet: every firewall is open to everyone with VPN access.</strong> Once a group exists, firewalls in no group are blocked. @else Firewalls in no group are blocked. @endif Changes reach devices at the next sync (within 15 minutes).</p>
+                        @if($accessGroups->isNotEmpty() && $blockedSites->isNotEmpty())
+                            <p class="text-sm text-red-600 dark:text-red-400 mt-2">Blocked (in no group): {{ $blockedSites->map(fn ($bs) => $bs->firewall->name)->join(', ') }}</p>
+                        @endif
+                        <ul class="mt-3 divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach($accessGroups as $ag)
+                                <li class="py-2">
+                                    <details @if((string) old('group_id') === (string) $ag->id) open @endif>
+                                        <summary class="cursor-pointer text-sm">
+                                            <strong>{{ $ag->name }}</strong>
+                                            <span class="text-gray-500"> · {{ $ag->sites->map(fn ($gs) => $gs->firewall?->name)->filter()->join(', ') }}</span>
+                                            <span class="text-xs text-gray-500"> · @if($ag->everyone) everyone with VPN access @else {{ $ag->users->count() }} {{ \Illuminate\Support\Str::plural('person', $ag->users->count()) }}@foreach($ag->links as $ln), {{ $ln->providerName() }} “{{ $ln->external_name ?: $ln->external_id }}”@endforeach @endif</span>
+                                        </summary>
+                                        @if($canManage)
+                                            @include('vpn.admin._access-group-form', ['ag' => $ag])
+                                            @if($ag->links->isNotEmpty())
+                                                <ul class="mt-2 text-sm space-y-1">
+                                                    @foreach($ag->links as $ln)
+                                                        <li class="flex items-center justify-between gap-3 max-w-xl">
+                                                            <span>{{ $ln->providerName() }} group <strong>{{ $ln->external_name ?: $ln->external_id }}</strong> — its members are in this group</span>
+                                                            <form method="POST" action="{{ route('vpn.access-groups.unlink', [$company, $ln]) }}" onsubmit="return confirm('Unlink this group? Its members lose this access at the next sync.')">@csrf<button class="{{ $btnRed }}">Unlink</button></form>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @endif
+                                            <p class="text-xs text-gray-500 mt-2">@if($vc->ms_tenant_id) Link a Microsoft 365 group to this access group with “Search groups” below. @else Connect Microsoft 365 to link its groups. @endif</p>
+                                            <form method="POST" action="{{ route('vpn.access-groups.delete', [$company, $ag]) }}" class="mt-2" onsubmit="return confirm('Delete the access group {{ addslashes($ag->name) }}? Its members lose its firewalls at the next sync{{ $accessGroups->count() === 1 ? ', and every firewall opens to everyone with VPN access' : '' }}.')">@csrf<button class="{{ $btnRed }}">Delete group</button></form>
+                                        @endif
+                                    </details>
+                                </li>
+                            @endforeach
+                        </ul>
+                        @if($canManage && $canMakeGroups)
+                            <details class="mt-3" @if(old('group_id') === 'new') open @endif>
+                                <summary class="cursor-pointer text-sm font-semibold text-indigo-600 dark:text-indigo-400">+ New access group</summary>
+                                @if($accessGroups->isEmpty())
+                                    <p class="text-xs text-yellow-700 dark:text-yellow-400 mt-2">After this first group, firewalls you don't put in a group are blocked.</p>
+                                @endif
+                                @include('vpn.admin._access-group-form', ['ag' => null])
+                            </details>
+                        @endif
+                    @endif
+                </div>
+
                 {{-- Microsoft 365 groups --}}
-                <div class="mb-6 p-4 rounded border border-gray-200 dark:border-gray-700 max-w-3xl">
+                <div class="mb-6 p-4 rounded border border-gray-200 dark:border-gray-700 max-w-4xl">
                     <p class="text-sm font-semibold">Microsoft 365 groups <span class="font-normal text-gray-500">(optional)</span></p>
                     <ul class="text-sm mt-2 space-y-1">
                         <li class="flex items-center justify-between gap-3">
-                            <span>Whole company: @if($vc->access_group_id) members of <strong>{{ $vc->access_group_name }}</strong> get VPN access automatically @else <span class="text-gray-500">no group — only the people listed below</span> @endif</span>
+                            <span>Whole company: @if($vc->access_group_id) members of <strong>{{ $vc->access_group_name }}</strong> get VPN access automatically @else <span class="text-gray-500">no group — only the people listed below and members of groups linked to access groups</span> @endif</span>
                             @if($canManage && $vc->access_group_id)
                                 <form method="POST" action="{{ route('vpn.groups.clear', $company) }}" onsubmit="return confirm('Stop using this group? People who came in through it lose access at the next sync.')">@csrf<input type="hidden" name="target" value="company"><button class="{{ $btnRed }}">Remove</button></form>
                             @endif
                         </li>
-                        @foreach($sites->filter(fn ($s) => $s->access_group_id) as $gs)
-                            <li class="flex items-center justify-between gap-3">
-                                <span>{{ $gs->firewall->name }}: only members of <strong>{{ $gs->access_group_name }}</strong></span>
-                                @if($canManage)
-                                    <form method="POST" action="{{ route('vpn.groups.clear', $company) }}">@csrf<input type="hidden" name="target" value="{{ $gs->id }}"><button class="{{ $btnRed }}">Remove</button></form>
-                                @endif
-                            </li>
-                        @endforeach
                     </ul>
-                    <p class="text-xs text-gray-500 mt-2">A company group gives its members VPN access without adding them one by one (nested groups count). A firewall's group limits that firewall to its members, who also get VPN access for it. Firewalls without a group are open to everyone with VPN access. Leaving a group removes the access within 15 minutes. People added by hand below keep access; email-and-password accounts can use firewalls without a group only.</p>
+                    <p class="text-xs text-gray-500 mt-2">Members of the company's group, or of a group linked to an access group, get VPN access without being added one by one (nested groups count). Leaving the group removes that access within 15 minutes. People added by hand below keep access.</p>
                     @if($canManage && $vc->ms_tenant_id)
                         <form method="GET" action="{{ route('vpn.company', $company) }}" class="flex gap-2 mt-3">
                             <input name="gq" value="{{ $gq }}" placeholder="Search this company's Microsoft 365 groups, e.g. VPN" class="flex-1 {{ $input }}">
@@ -171,8 +214,8 @@
                                         <form method="POST" action="{{ route('vpn.groups.assign', $company) }}" class="flex gap-2">@csrf
                                             <input type="hidden" name="group_id" value="{{ $g['id'] }}">
                                             <select name="target" class="{{ $input }} text-sm">
-                                                <option value="company">Whole company</option>
-                                                @foreach($sites->filter(fn ($s) => $s->isReady()) as $rs)<option value="{{ $rs->id }}">Only for {{ $rs->firewall->name }}</option>@endforeach
+                                                <option value="company">Whole company (VPN access)</option>
+                                                @foreach($accessGroups as $ag)<option value="group:{{ $ag->id }}">Access group: {{ $ag->name }}</option>@endforeach
                                             </select>
                                             <button class="{{ $btn2 }}">Use</button>
                                         </form>
@@ -183,7 +226,7 @@
                             </ul>
                         @endif
                     @elseif($canManage)
-                        <p class="text-xs text-gray-500 mt-2">Connect Microsoft 365 first to use groups.</p>
+                        <p class="text-xs text-gray-500 mt-2">Connect Microsoft 365 first to use its groups.</p>
                     @endif
                 </div>
                 <div class="overflow-x-auto">
