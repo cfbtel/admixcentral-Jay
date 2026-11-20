@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Hash;
 class VpnAccounts
 {
     public const MIN_PASSWORD = 12;
-    private const MAX_FAILURES = 5;
-    private const LOCK_MINUTES = 15;
+    public const MAX_FAILURES = 5;
+    public const LOCK_MINUTES = 15;
 
     public function __construct(private VpnMailer $mailer)
     {
@@ -30,7 +30,8 @@ class VpnAccounts
         return VpnUser::where('upn', $email)->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))->exists();
     }
 
-    public function invite(Company $company, string $name, string $email, string $actor): VpnUser
+    /** @param  ?string  $mfaMode  null = company setting, "optional" or "required" */
+    public function invite(Company $company, string $name, string $email, string $actor, ?string $mfaMode = null): VpnUser
     {
         $user = VpnUser::create([
             'company_id' => $company->id,
@@ -39,8 +40,9 @@ class VpnAccounts
             'upn' => $email,
             'name' => $name,
             'added_by' => $actor,
+            'mfa_mode' => $mfaMode,
         ]);
-        VpnAuditLog::record($company->id, $actor, "vpn_invited {$email}");
+        VpnAuditLog::record($company->id, $actor, "vpn_invited {$email}" . ($mfaMode ? " (two-factor {$mfaMode})" : ''));
         $this->sendLink($user, false);
         return $user;
     }

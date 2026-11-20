@@ -853,6 +853,11 @@ Route::prefix('vpn')->name('vpn.portal.')->group(function () {
     Route::get('/download/windows', [App\Http\Controllers\Vpn\WindowsAppController::class, 'download'])->middleware('throttle:vpn-portal')->name('download.windows');
     Route::match(['get', 'post'], '/login', [App\Http\Controllers\Vpn\PortalController::class, 'login'])->middleware('throttle:vpn-portal')->name('login');
     Route::post('/login/password', [App\Http\Controllers\Vpn\PortalController::class, 'passwordLogin'])->middleware('throttle:vpn-portal')->name('login.password');
+    Route::get('/mfa', [App\Http\Controllers\Vpn\PortalController::class, 'mfaForm'])->middleware('throttle:vpn-portal')->name('mfa');
+    Route::post('/mfa', [App\Http\Controllers\Vpn\PortalController::class, 'mfaVerify'])->middleware('throttle:vpn-portal')->name('mfa.verify');
+    Route::get('/mfa/setup', [App\Http\Controllers\Vpn\PortalController::class, 'mfaSetupForm'])->middleware('throttle:vpn-portal')->name('mfa.setup');
+    Route::post('/mfa/setup', [App\Http\Controllers\Vpn\PortalController::class, 'mfaSetup'])->middleware('throttle:vpn-portal')->name('mfa.setup.store');
+    Route::post('/mfa/disable', [App\Http\Controllers\Vpn\PortalController::class, 'mfaDisable'])->middleware('throttle:vpn-portal')->name('mfa.disable');
     Route::post('/forgot', [App\Http\Controllers\Vpn\PortalController::class, 'forgot'])->middleware('throttle:5,1')->name('forgot');
     Route::get('/password/{token}', [App\Http\Controllers\Vpn\PortalController::class, 'passwordForm'])->middleware('throttle:vpn-portal')->name('password');
     Route::post('/password/{token}', [App\Http\Controllers\Vpn\PortalController::class, 'setPassword'])->middleware('throttle:vpn-portal')->name('password.store');
@@ -887,6 +892,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/microsoft/own-app/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeOwnApp'])->middleware('deny.readonly')->name('vpn.microsoft.remove');
         Route::get('/groups/search', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'searchGroups'])->middleware('throttle:60,1')->name('vpn.groups.search');
         Route::get('/support/{report}', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'supportReport'])->whereNumber('report')->name('vpn.support.show');
+        Route::post('/mfa', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveMfaMode'])->middleware('deny.readonly')->name('vpn.mfa.save');
+        Route::post('/users/{vpnUser}/mfa-reset', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'resetMfa'])->whereNumber('vpnUser')->middleware('deny.readonly')->name('vpn.users.mfa-reset');
         Route::post('/groups/company', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveCompanyGroups'])->middleware('deny.readonly')->name('vpn.groups.company');
         Route::post('/groups/assign', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'assignGroup'])->middleware('deny.readonly')->name('vpn.groups.assign');
         Route::post('/groups/clear', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'clearGroup'])->middleware('deny.readonly')->name('vpn.groups.clear');

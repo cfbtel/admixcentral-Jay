@@ -12,6 +12,7 @@ use App\Models\Vpn\VpnUser;
 use App\Services\Vpn\Microsoft;
 use App\Services\Vpn\VpnException;
 use App\Services\Vpn\VpnManager;
+use App\Services\Vpn\VpnMfa;
 use App\Services\Vpn\VpnSettings;
 use App\Services\Vpn\WireGuard;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
@@ -30,6 +31,8 @@ class PortalController extends Controller
 {
     private const SESSION = 'vpn_portal';
     private const PENDING = 'vpn_portal_login';
+    private const MFA_PENDING = 'vpn_portal_mfa';       // password OK, two-factor still to do
+    private const MFA_SECRET = 'vpn_portal_mfa_secret'; // the secret shown on the setup page until confirmed
     public const PLATFORMS = ['windows' => 'Windows PC', 'macos' => 'Mac', 'iphone' => 'iPhone / iPad', 'android' => 'Android'];
 
     public function __construct(private VpnManager $vpn, private \App\Services\Vpn\VpnAccounts $accounts, private \App\Services\Vpn\VpnAccess $access)
@@ -50,13 +53,24 @@ class PortalController extends Controller
         }
         if ($user->isLocal()) {
             // A password change (or reset) signs out older sessions.
-            return ($s['auth'] ?? '') === 'local' && $user->password && hash_equals($user->passwordVersion(), (string) ($s['pv'] ?? '')) ? $user : null;
+            if (($s['auth'] ?? '') !== 'local' || !$user->password || !hash_equals($user->passwordVersion(), (string) ($s['pv'] ?? ''))) {
+                return null;
+            }
+            // Two-factor made required since this session started: sign in again (and set it up).
+            return VpnMfa::required($user) && !VpnMfa::enabled($user) ? null : $user;
         }
         return ($s['auth'] ?? 'microsoft') === 'microsoft' && $user->ms_oid === ($s['oid'] ?? null) ? $user : null;
     }
 
     private function startSession(Request $request, VpnUser $user, string $how)
     {
+        return redirect($this->beginSession($request, $user, $how));
+    }
+
+    /** Signs the person in and returns where to go next. */
+    private function beginSession(Request $request, VpnUser $user, string $how): string
+    {
+        $request->session()->forget([self::MFA_PENDING, self::MFA_SECRET]);
         $request->session()->regenerate();
         $request->session()->put(self::SESSION, [
             'id' => $user->id,
@@ -69,7 +83,149 @@ class PortalController extends Controller
         VpnAuditLog::record($user->company_id, $user->upn, "signed_in ({$how})");
         // Back to where the sign-in started, e.g. the CFBTEL VPN app's "Connect this computer" page.
         $to = (string) $request->session()->pull('vpn_intended', '');
-        return redirect(str_starts_with($to, '/vpn/app?') ? $to : '/vpn');
+        return str_starts_with($to, '/vpn/app?') ? $to : '/vpn';
+    }
+
+    // ---- two-factor sign-in (email-and-password accounts) ----
+
+    /** After a correct password: ask for the authenticator code, or set it up first when it's required. */
+    private function afterPassword(Request $request, VpnUser $user, string $how)
+    {
+        if (!VpnMfa::enabled($user) && !VpnMfa::required($user)) {
+            return $this->startSession($request, $user, $how);
+        }
+        $request->session()->regenerate();
+        $request->session()->put(self::MFA_PENDING, ['id' => $user->id, 'pv' => $user->passwordVersion(), 'how' => $how, 'exp' => time() + 600]);
+        return redirect(VpnMfa::enabled($user) ? '/vpn/mfa' : '/vpn/mfa/setup');
+    }
+
+    private function pendingMfaUser(Request $request): ?VpnUser
+    {
+        $p = $request->session()->get(self::MFA_PENDING);
+        if (!is_array($p) || ($p['exp'] ?? 0) < time()) {
+            return null;
+        }
+        $user = VpnUser::find($p['id'] ?? 0);
+        return $user && $user->isLocal() && $user->password && hash_equals($user->passwordVersion(), (string) ($p['pv'] ?? '')) ? $user : null;
+    }
+
+    public function mfaForm(Request $request)
+    {
+        $user = $this->pendingMfaUser($request);
+        if (!$user) {
+            return redirect('/vpn');
+        }
+        if (!VpnMfa::enabled($user)) {
+            return redirect('/vpn/mfa/setup');
+        }
+        return response()->view('vpn.portal.mfa', ['account' => $user, 'error' => null]);
+    }
+
+    public function mfaVerify(Request $request)
+    {
+        $user = $this->pendingMfaUser($request);
+        if (!$user || !VpnMfa::enabled($user)) {
+            return redirect('/vpn')->with('vpn_error', 'Please sign in again.');
+        }
+        if ($user->locked_until && $user->locked_until->isFuture()) {
+            $request->session()->forget(self::MFA_PENDING);
+            return response()->view('vpn.portal.password', ['email' => $user->upn, 'error' => 'Too many wrong codes. Try again in ' . \App\Services\Vpn\VpnAccounts::LOCK_MINUTES . ' minutes.'], 429);
+        }
+        $how = VpnMfa::verify($user, (string) $request->input('code', ''));
+        if (!$how) {
+            $fails = $user->failed_logins + 1;
+            $lock = $fails >= \App\Services\Vpn\VpnAccounts::MAX_FAILURES;
+            $user->update(['failed_logins' => $lock ? 0 : $fails, 'locked_until' => $lock ? now()->addMinutes(\App\Services\Vpn\VpnAccounts::LOCK_MINUTES) : null]);
+            if ($lock) {
+                VpnAuditLog::record($user->company_id, 'system', "account_locked {$user->upn} (too many wrong two-factor codes)");
+                $request->session()->forget(self::MFA_PENDING);
+                return response()->view('vpn.portal.password', ['email' => $user->upn, 'error' => 'Too many wrong codes. Try again in ' . \App\Services\Vpn\VpnAccounts::LOCK_MINUTES . ' minutes.'], 429);
+            }
+            return response()->view('vpn.portal.mfa', ['account' => $user, 'error' => 'That code didn\'t work. Use the current 6-digit code from your authenticator app (each code works once), or a recovery code.'], 422);
+        }
+        $p = $request->session()->get(self::MFA_PENDING);
+        $user->update(['failed_logins' => 0]);
+        return $this->startSession($request, $user, ($p['how'] ?? 'password') . ($how === 'app' ? ' + authenticator' : ' + recovery code'));
+    }
+
+    /** @return array{0: ?VpnUser, 1: bool} the person and whether this is during sign-in (true) or from the staff page */
+    private function mfaSetupUser(Request $request): array
+    {
+        if ($u = $this->pendingMfaUser($request)) {
+            return [$u, true];
+        }
+        $u = $this->person($request);
+        return $u && $u->isLocal() ? [$u, false] : [null, false];
+    }
+
+    public function mfaSetupForm(Request $request)
+    {
+        [$user, $inLogin] = $this->mfaSetupUser($request);
+        if (!$user) {
+            return redirect('/vpn');
+        }
+        if (VpnMfa::enabled($user)) {
+            return redirect($inLogin ? '/vpn/mfa' : '/vpn');
+        }
+        return $this->mfaSetupPage($request, $user, $inLogin, null);
+    }
+
+    private function mfaSetupPage(Request $request, VpnUser $user, bool $inLogin, ?string $error)
+    {
+        $s = $request->session()->get(self::MFA_SECRET);
+        if (!is_array($s) || ($s['id'] ?? 0) !== $user->id) {
+            $s = ['id' => $user->id, 'secret' => VpnMfa::newSecret()];
+            $request->session()->put(self::MFA_SECRET, $s);
+        }
+        return response()->view('vpn.portal.mfa-setup', [
+            'user' => $inLogin ? null : $user,
+            'account' => $user,
+            'qr' => VpnMfa::qrSvg($user, $s['secret']),
+            'secret' => trim(chunk_split($s['secret'], 4, ' ')),
+            'required' => VpnMfa::required($user),
+            'error' => $error,
+        ], $error ? 422 : 200);
+    }
+
+    public function mfaSetup(Request $request)
+    {
+        [$user, $inLogin] = $this->mfaSetupUser($request);
+        if (!$user) {
+            return redirect('/vpn')->with('vpn_error', 'Please sign in again.');
+        }
+        if (VpnMfa::enabled($user)) {
+            return redirect($inLogin ? '/vpn/mfa' : '/vpn');
+        }
+        $s = $request->session()->get(self::MFA_SECRET);
+        $step = is_array($s) && ($s['id'] ?? 0) === $user->id ? VpnMfa::check($s['secret'], (string) $request->input('code', ''), null) : null;
+        if (!$step) {
+            return $this->mfaSetupPage($request, $user, $inLogin, 'That code didn\'t match. Check that the app shows "CFBTEL VPN" and type the 6-digit code it shows now.');
+        }
+        $codes = VpnMfa::enable($user, $s['secret'], $step);
+        $request->session()->forget(self::MFA_SECRET);
+        $next = '/vpn';
+        if ($inLogin) {
+            $p = $request->session()->get(self::MFA_PENDING);
+            $next = $this->beginSession($request, $user->fresh(), ($p['how'] ?? 'password') . ' + new authenticator');
+        }
+        return response()->view('vpn.portal.mfa-codes', ['user' => $user->fresh(), 'codes' => $codes, 'next' => $next]);
+    }
+
+    /** Staff page: turn two-factor off (only when the company doesn't require it), with a current code. */
+    public function mfaDisable(Request $request)
+    {
+        $user = $this->person($request);
+        if (!$user || !$user->isLocal()) {
+            return redirect('/vpn')->with('vpn_error', 'Please sign in again.');
+        }
+        if (VpnMfa::required($user)) {
+            return $this->devicesPage($user, ['error', 'Your company requires two-factor sign-in, so it can\'t be turned off.'], 403);
+        }
+        if (!VpnMfa::verify($user, (string) $request->input('code', ''))) {
+            return $this->devicesPage($user, ['error', 'That code didn\'t work. Type the current code from your authenticator app to turn two-factor off.'], 422);
+        }
+        VpnMfa::disable($user, $user->upn);
+        return $this->devicesPage($user->fresh(), ['ok', 'Two-factor sign-in is off. You can turn it on again here any time.']);
     }
 
     private function onPortalHost(Request $request): ?\Illuminate\Http\RedirectResponse
@@ -111,6 +267,9 @@ class PortalController extends Controller
             'platforms' => self::PLATFORMS,
             'notice' => $notice,
             'noGroup' => $sites->isEmpty() && $this->vpn->readySites($user->company_id)->isNotEmpty(),
+            'mfaOn' => VpnMfa::enabled($user),
+            'mfaRequired' => VpnMfa::required($user),
+            'recoveryLeft' => count((array) ($user->mfa_recovery ?? [])),
         ], $status);
     }
 
@@ -212,7 +371,7 @@ class PortalController extends Controller
         if (!$r['user']) {
             return response()->view('vpn.portal.password', ['email' => $email, 'error' => $r['error']], 422);
         }
-        return $this->startSession($request, $r['user'], 'password');
+        return $this->afterPassword($request, $r['user'], 'password');
     }
 
     /** "Forgot password?": always the same answer, so it can't be used to find accounts. */
@@ -260,7 +419,7 @@ class PortalController extends Controller
             return response()->view('vpn.portal.set-password', ['account' => $user, 'token' => $token, 'error' => $error, 'min' => $min], 422);
         }
         $this->accounts->setPassword($user, $password);
-        return $this->startSession($request, $user->fresh(), 'new password');
+        return $this->afterPassword($request, $user->fresh(), 'new password');
     }
 
     public function logout(Request $request)

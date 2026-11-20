@@ -95,6 +95,7 @@ class CompanyVpnController extends Controller
             'users' => VpnUser::where('company_id', $company->id)->withCount('activeDevices')->orderBy('name')->get(),
             'devices' => VpnDevice::with(['user', 'site.firewall'])->whereIn('vpn_site_id', $sites->pluck('id'))->orderByDesc('created_at')->get(),
             'audit' => VpnAuditLog::where('company_id', $company->id)->orderByDesc('id')->limit(40)->get(),
+            'mfaCompany' => \App\Services\Vpn\VpnMfa::companyMode($company->id),
             'supportReports' => \App\Models\Vpn\VpnSupportReport::where('company_id', $company->id)->orderByDesc('id')->limit(20)
                 ->get(['id', 'contact_name', 'contact_email', 'subject', 'computer', 'device_name', 'problems', 'warnings', 'emailed_at', 'email_error', 'created_at']),
             'q' => $q,
@@ -458,8 +459,10 @@ class CompanyVpnController extends Controller
         if (\App\Services\Vpn\VpnAccounts::emailTaken($email)) {
             return back()->withErrors(['invite' => "{$email} already has VPN access."])->withInput();
         }
+        $mfa = (string) $request->input('mfa_mode', '');
+        $mfa = isset(\App\Services\Vpn\VpnMfa::MODES[$mfa]) ? $mfa : null;
         try {
-            $this->accounts->invite($company, $name, $email, $this->actor($request));
+            $this->accounts->invite($company, $name, $email, $this->actor($request), $mfa);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('VPN: invitation email failed', ['error' => $e->getMessage()]);
             return back()->with('warning', "{$name} was added, but the invitation email couldn't be sent: {$e->getMessage()} Check the email settings, then click Resend invite.");
@@ -480,9 +483,35 @@ class CompanyVpnController extends Controller
             return back()->withErrors(['edit' => "{$email} already has VPN access."]);
         }
         $changed = $email !== $vpnUser->upn;
-        $vpnUser->update(['name' => $name, 'upn' => $email]);
-        VpnAuditLog::record($company->id, $this->actor($request), "vpn_account_updated {$email}" . ($changed ? ' (email changed)' : ''));
+        $mfa = (string) $request->input('mfa_mode', '');
+        $mfa = isset(\App\Services\Vpn\VpnMfa::MODES[$mfa]) ? $mfa : null;
+        $mfaChanged = $request->has('mfa_mode') && $mfa !== $vpnUser->mfa_mode;
+        $vpnUser->update(['name' => $name, 'upn' => $email] + ($request->has('mfa_mode') ? ['mfa_mode' => $mfa] : []));
+        VpnAuditLog::record($company->id, $this->actor($request), "vpn_account_updated {$email}" . ($changed ? ' (email changed)' : '')
+            . ($mfaChanged ? ' (two-factor: ' . ($mfa ?? 'company setting') . ')' : ''));
         return back()->with('success', "Saved {$name}." . ($changed ? ' They now sign in with the new email address.' : ''));
+    }
+
+    /** Company setting for email-and-password accounts: two-factor optional or required. */
+    public function saveMfaMode(Request $request, Company $company)
+    {
+        $this->authorizeManage($request, $company);
+        $v = $request->validate(['mfa_mode' => ['required', 'in:' . implode(',', array_keys(\App\Services\Vpn\VpnMfa::MODES))]]);
+        VpnCompany::forCompany($company)->update(['mfa_mode' => $v['mfa_mode']]);
+        VpnAuditLog::record($company->id, $this->actor($request), "mfa_company_mode {$v['mfa_mode']}");
+        return back()->with('success', $v['mfa_mode'] === 'required'
+            ? 'Two-factor sign-in is now required for email-and-password accounts (unless set otherwise on a person). Anyone who hasn\'t set it up will do so at their next sign-in.'
+            : 'Two-factor sign-in is now optional for email-and-password accounts (unless set otherwise on a person).');
+    }
+
+    /** The person lost their phone: remove their authenticator; they set it up again (if required) at the next sign-in. */
+    public function resetMfa(Request $request, Company $company, VpnUser $vpnUser)
+    {
+        $this->authorizeManage($request, $company);
+        abort_unless((int) $vpnUser->company_id === (int) $company->id && $vpnUser->isLocal(), 404);
+        \App\Services\Vpn\VpnMfa::disable($vpnUser, $this->actor($request), 'mfa_reset');
+        return back()->with('success', "Two-factor was reset for {$vpnUser->name}."
+            . (\App\Services\Vpn\VpnMfa::required($vpnUser) ? ' They set it up again at their next sign-in.' : ' They can turn it on again on the VPN page.'));
     }
 
     public function resendInvite(Request $request, Company $company, VpnUser $vpnUser)

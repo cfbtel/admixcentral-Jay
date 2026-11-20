@@ -16,14 +16,19 @@ class VpnUser extends Model
     protected $fillable = [
         'company_id', 'auth_type', 'source', 'ms_oid', 'upn', 'name', 'added_by', 'last_login_at',
         'password', 'invite_token_hash', 'invite_expires_at', 'invited_at', 'password_set_at', 'failed_logins', 'locked_until',
+        'mfa_mode', 'mfa_secret', 'mfa_enabled_at', 'mfa_recovery', 'mfa_last_step',
     ];
-    protected $hidden = ['password', 'invite_token_hash'];
+    protected $hidden = ['password', 'invite_token_hash', 'mfa_secret', 'mfa_recovery'];
     protected $casts = [
         'last_login_at' => 'datetime',
         'invite_expires_at' => 'datetime',
         'invited_at' => 'datetime',
         'password_set_at' => 'datetime',
         'locked_until' => 'datetime',
+        'mfa_secret' => 'encrypted',
+        'mfa_enabled_at' => 'datetime',
+        'mfa_recovery' => 'encrypted:array',
+        'mfa_last_step' => 'integer',
     ];
 
     /** Came in through the company's Microsoft 365 group (not added by hand). */

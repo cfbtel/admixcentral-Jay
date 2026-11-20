@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.10.0
+- Two-factor sign-in for email-and-password VPN accounts, with an authenticator app (Google Authenticator,
+  Microsoft Authenticator, …) set up by scanning a QR code:
+  - Company setting (VPN page → Who has VPN access): **Optional** (default) or **Required**; each person can be
+    set differently (invite form and Edit: company setting / required / optional).
+  - Required: after the password, the person must set it up (QR code, then a 6-digit code) before getting in;
+    existing sessions end when it becomes required. Optional: "Turn on two-factor" on the VPN page (and off,
+    with a current code).
+  - Every sign-in then asks for the code. Each code works once; 8 one-time recovery codes are shown at setup;
+    5 wrong codes lock the account for 15 minutes. Secrets are stored encrypted.
+  - Admins can **Reset two-factor** (lost phone). The invitation email says when it's required.
+  - Works with the CFBTEL VPN Windows app's sign-in. Microsoft 365 accounts keep using Microsoft's MFA.
+
 ### Added — v0.9.0
 - For the CFBTEL VPN Windows app's new Diagnostics tab:
   - `POST /vpn/app/status`: the office firewall as AdmixCentral sees it for that device (firewall reachable,

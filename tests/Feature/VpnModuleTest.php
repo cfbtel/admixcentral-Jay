@@ -644,6 +644,136 @@ class VpnModuleTest extends TestCase
         $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'nobody@nomicrosoft.example', 'password' => 'whatever whatever'])->assertStatus(422)->assertSee('Wrong email or password');
     }
 
+    /** The current authenticator code for a secret (as the phone app would show it). */
+    private function otp(string $secret): string
+    {
+        return (new \PragmaRX\Google2FA\Google2FA())->getCurrentOtp($secret);
+    }
+
+    /** Invites and sets a password; returns [person, password link response]. */
+    private function inviteAndSetPassword(array $w, array $extra = []): array
+    {
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/users/invite", ['name' => 'Dan Doe', 'email' => 'dan@nomicrosoft.example'] + $extra)->assertSessionHas('success');
+        $mail = collect($this->sentMail())->last();
+        $link = $this->linkIn($mail);
+        auth()->logout();
+        $res = $this->post(self::PORTAL . $link, ['password' => 'correct horse battery', 'password_confirmation' => 'correct horse battery']);
+        return [VpnUser::where('upn', 'dan@nomicrosoft.example')->firstOrFail(), $res, $mail];
+    }
+
+    public function test_required_two_factor_is_set_up_at_first_sign_in_and_asked_every_time(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $base = "/companies/{$w['acme']->id}/vpn";
+        $this->console($w['acmeReader'])->post("$base/mfa", ['mfa_mode' => 'required'])->assertForbidden();
+        $this->console($w['acmeAdmin'])->post("$base/mfa", ['mfa_mode' => 'required'])->assertSessionHas('success');
+        $this->assertSame('required', VpnCompany::where('company_id', $w['acme']->id)->value('mfa_mode'));
+
+        [$dan, $res, $mail] = $this->inviteAndSetPassword($w);
+        $this->assertStringContainsString('Google Authenticator', $mail->getTextBody());
+        // Password set, but no access until two-factor is set up.
+        $res->assertRedirect('/vpn/mfa/setup');
+        $this->get(self::PORTAL . '/vpn')->assertDontSee('Your devices');
+        $this->addDevice('Laptop')->assertRedirect('/vpn');
+        $this->get(self::PORTAL . '/vpn/mfa/setup')->assertOk()->assertSee('Set up two-factor sign-in')->assertSee('<svg', false)->assertSee('requires two-factor')->assertDontSee('Not now');
+        $secret = session('vpn_portal_mfa_secret')['secret'];
+        $this->post(self::PORTAL . '/vpn/mfa/setup', ['code' => '000000'])->assertStatus(422)->assertSee('didn&#039;t match', false);
+        $page = $this->post(self::PORTAL . '/vpn/mfa/setup', ['code' => $this->otp($secret)])->assertOk()->assertSee('Save your recovery codes');
+        preg_match_all('/\b[A-Z2-9]{5}-[A-Z2-9]{5}\b/', $page->getContent(), $m);
+        $this->assertCount(8, array_unique($m[0]));
+        $dan->refresh();
+        $this->assertNotNull($dan->mfa_enabled_at);
+        $this->assertNotSame($secret, \Illuminate\Support\Facades\DB::table('vpn_users')->where('id', $dan->id)->value('mfa_secret')); // stored encrypted
+        $this->addDevice('Laptop')->assertOk();
+
+        // Next sign-in: password, then the code. The code used at setup can't be used again.
+        $this->post(self::PORTAL . '/vpn/logout');
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('/vpn/mfa');
+        $this->get(self::PORTAL . '/vpn')->assertDontSee('Your devices');
+        $this->post(self::PORTAL . '/vpn/mfa', ['code' => $this->otp($secret)])->assertStatus(422);
+        $dan->update(['mfa_last_step' => 0]); // as if 30 seconds passed
+        $this->post(self::PORTAL . '/vpn/mfa', ['code' => $this->otp($secret)])->assertRedirect('https://vpn.test/vpn');
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Two-factor sign-in')->assertDontSee('Turn two-factor off');
+
+        // A recovery code works once.
+        $this->post(self::PORTAL . '/vpn/logout');
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('/vpn/mfa');
+        $this->post(self::PORTAL . '/vpn/mfa', ['code' => strtolower($m[0][0])])->assertRedirect('https://vpn.test/vpn');
+        $this->post(self::PORTAL . '/vpn/logout');
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery']);
+        $this->post(self::PORTAL . '/vpn/mfa', ['code' => $m[0][0]])->assertStatus(422);
+        $this->assertCount(7, $dan->fresh()->mfa_recovery);
+
+        // Five wrong codes lock the account.
+        for ($i = 0; $i < 3; $i++) {
+            $this->post(self::PORTAL . '/vpn/mfa', ['code' => '11111' . $i])->assertStatus(422);
+        }
+        $this->post(self::PORTAL . '/vpn/mfa', ['code' => '222222'])->assertStatus(429)->assertSee('Too many wrong codes');
+        $this->assertSame('locked', $dan->fresh()->status());
+
+        // Lost phone: the admin resets it; the next sign-in sets it up again.
+        $dan->fresh()->update(['locked_until' => null, 'failed_logins' => 0]);
+        $this->console($w['acmeAdmin'])->get($base)->assertOk()->assertSee('2FA on')->assertSee('Reset two-factor');
+        $this->console($w['acmeAdmin'])->post("$base/users/{$dan->id}/mfa-reset")->assertSessionHas('success');
+        $this->assertNull($dan->fresh()->mfa_secret);
+        auth()->logout();
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('/vpn/mfa/setup');
+    }
+
+    public function test_optional_two_factor_can_be_turned_on_and_off_and_set_per_person(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $base = "/companies/{$w['acme']->id}/vpn";
+        [$dan, $res] = $this->inviteAndSetPassword($w);
+        $res->assertRedirect('https://vpn.test/vpn'); // optional (the default): straight in
+        $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Turn on two-factor');
+
+        $this->get(self::PORTAL . '/vpn/mfa/setup')->assertOk()->assertSee('Not now');
+        $secret = session('vpn_portal_mfa_secret')['secret'];
+        $this->post(self::PORTAL . '/vpn/mfa/setup', ['code' => $this->otp($secret)])->assertOk()->assertSee('Two-factor sign-in is on');
+        $this->get(self::PORTAL . '/vpn')->assertSee('Turn two-factor off');
+        $dan->update(['mfa_last_step' => 0]);
+        $this->post(self::PORTAL . '/vpn/mfa/disable', ['code' => '000000'])->assertStatus(422);
+        $this->post(self::PORTAL . '/vpn/mfa/disable', ['code' => $this->otp($secret)])->assertOk()->assertSee('Two-factor sign-in is off');
+        $this->assertNull($dan->fresh()->mfa_enabled_at);
+
+        // The admin makes it required for Dan only: his session ends and the next sign-in sets it up.
+        $this->console($w['acmeAdmin'])->post("$base/users/{$dan->id}/update", ['name' => 'Dan Doe', 'email' => 'dan@nomicrosoft.example', 'mfa_mode' => 'required'])->assertSessionHas('success');
+        $this->assertSame('required', $dan->fresh()->mfa_mode);
+        $this->console($w['acmeAdmin'])->get($base)->assertSee('2FA required, not set up yet');
+        auth()->logout();
+        $this->get(self::PORTAL . '/vpn')->assertDontSee('Your devices');
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('/vpn/mfa/setup');
+
+        // Back to the company setting (optional): straight in again.
+        $this->console($w['acmeAdmin'])->post("$base/users/{$dan->id}/update", ['name' => 'Dan Doe', 'email' => 'dan@nomicrosoft.example', 'mfa_mode' => ''])->assertSessionHas('success');
+        $this->assertNull($dan->fresh()->mfa_mode);
+        auth()->logout();
+        $this->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('https://vpn.test/vpn');
+
+        // Invited with two-factor required on a company where it's optional.
+        $this->console($w['acmeAdmin'])->post("$base/users/invite", ['name' => 'Eve', 'email' => 'eve@nomicrosoft.example', 'mfa_mode' => 'required'])->assertSessionHas('success');
+        $this->assertSame('required', VpnUser::where('upn', 'eve@nomicrosoft.example')->value('mfa_mode'));
+    }
+
+    public function test_two_factor_keeps_the_windows_app_sign_in_going(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/mfa", ['mfa_mode' => 'required']);
+        [$dan] = $this->inviteAndSetPassword($w);
+        $this->get(self::PORTAL . '/vpn/mfa/setup');
+        $secret = session('vpn_portal_mfa_secret')['secret'];
+        $this->post(self::PORTAL . '/vpn/mfa/setup', ['code' => $this->otp($secret)])->assertOk();
+        $this->post(self::PORTAL . '/vpn/logout');
+        // The app's sign-in page sends the person to sign in and back afterwards.
+        $this->withSession(['vpn_intended' => '/vpn/app?state=abc'])->post(self::PORTAL . '/vpn/login/password', ['email' => 'dan@nomicrosoft.example', 'password' => 'correct horse battery'])->assertRedirect('/vpn/mfa');
+        $dan->update(['mfa_last_step' => 0]);
+        $this->post(self::PORTAL . '/vpn/mfa', ['code' => $this->otp($secret)])->assertRedirect('/vpn/app?state=abc');
+    }
+
     public function test_admins_edit_resend_and_remove_email_accounts_and_password_reset_signs_out_old_sessions(): void
     {
         $w = $this->world();

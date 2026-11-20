@@ -81,6 +81,9 @@ class VpnMailer
         } else {
             $subject = self::render(VpnSettings::inviteSubject(), $vars);
             $body = self::render(VpnSettings::inviteBody(), $vars);
+            if (VpnMfa::required($user) && !VpnMfa::enabled($user)) {
+                $body .= "\n\nTwo-factor sign-in is required: after you set your password you'll scan a QR code with an authenticator app on your phone, such as Google Authenticator or Microsoft Authenticator. Install one before you start.";
+            }
         }
         $this->send($user->upn, $subject, $body);
     }

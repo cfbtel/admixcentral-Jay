@@ -38,4 +38,24 @@
         @endif
         <p class="small">Each device gets its own key. Lost a device? Remove it here and it can no longer connect.</p>
     @endif
+    @if($user->isLocal())
+        <h2>Two-factor sign-in</h2>
+        @if($mfaOn)
+            <p class="small"><span class="badge ready">On</span> You sign in with your password and a code from your authenticator app. Recovery codes left: {{ $recoveryLeft }}.</p>
+            @if($mfaRequired)
+                <p class="small">Your company requires it. Lost your phone? Ask your IT admin to reset it.</p>
+            @else
+                <details>
+                    <summary class="small">Turn two-factor off</summary>
+                    <form method="POST" action="/vpn/mfa/disable" class="row">@csrf
+                        <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required placeholder="Current code" aria-label="Current code from your authenticator app">
+                        <button class="btn secondary" type="submit">Turn off</button>
+                    </form>
+                </details>
+            @endif
+        @else
+            <p class="small">Off. Add a code from your phone (Google Authenticator, Microsoft Authenticator…) to your sign-in, so a stolen password alone can't get in.</p>
+            <p class="actions"><a class="btn secondary" href="/vpn/mfa/setup">Turn on two-factor</a></p>
+        @endif
+    @endif
 @endsection

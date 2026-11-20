@@ -217,6 +217,8 @@
                                         Email &amp; password
                                         @php $st = $u->status(); @endphp
                                         <span class="text-xs {{ $st === 'active' ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400' }}">· {{ $st === 'invited' ? 'invited, password not set' : $st }}</span>
+                                        @php $mfaLabel = \App\Services\Vpn\VpnMfa::label($u); @endphp
+                                        <span class="text-xs {{ str_starts_with($mfaLabel, '2FA on') ? 'text-green-600 dark:text-green-400' : (str_contains($mfaLabel, 'required') ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500') }}">· {{ $mfaLabel }}@if($u->mfa_mode) <span class="text-gray-500">({{ strtolower(\App\Services\Vpn\VpnMfa::MODES[$u->mfa_mode]) }} for this person)</span>@endif</span>
                                     @else
                                         Microsoft 365 @if($u->viaGroup()) <span class="text-xs text-indigo-600 dark:text-indigo-400">· through group</span>@endif
                                     @endif
@@ -232,8 +234,17 @@
                                                 <form method="POST" action="{{ route('vpn.users.update', [$company, $u]) }}" class="mt-2 space-y-2 p-3 rounded-md bg-gray-50 dark:bg-gray-700/50">@csrf
                                                     <input name="name" value="{{ $u->name }}" class="w-56 {{ $input }}" aria-label="Name">
                                                     <input name="email" type="email" value="{{ $u->upn }}" class="w-56 {{ $input }}" aria-label="Email">
+                                                    <label class="block text-xs text-gray-500">Two-factor sign-in
+                                                        <select name="mfa_mode" class="block w-56 {{ $input }}">
+                                                            <option value="" @selected(!$u->mfa_mode)>Company setting ({{ strtolower(\App\Services\Vpn\VpnMfa::MODES[$mfaCompany]) }})</option>
+                                                            @foreach(\App\Services\Vpn\VpnMfa::MODES as $k => $l)<option value="{{ $k }}" @selected($u->mfa_mode === $k)>{{ $l }}</option>@endforeach
+                                                        </select>
+                                                    </label>
                                                     <button class="{{ $btn2 }}">Save</button>
                                                 </form>
+                                                @if(\App\Services\Vpn\VpnMfa::enabled($u))
+                                                    <form method="POST" action="{{ route('vpn.users.mfa-reset', [$company, $u]) }}" class="mt-2" onsubmit="return confirm('Reset two-factor for {{ addslashes($u->name) }}? Use this when they lost their phone. Their authenticator and recovery codes stop working.')">@csrf<button class="{{ $btn2 }}">Reset two-factor</button></form>
+                                                @endif
                                             </details>
                                             <form method="POST" action="{{ route('vpn.users.resend', [$company, $u]) }}" class="inline">@csrf<button class="{{ $btn2 }}">{{ $u->password ? 'Send password link' : 'Resend invite' }}</button></form>
                                         @endif
@@ -273,12 +284,24 @@
                     @endif
 
                     <h4 class="font-semibold mt-6 mb-1">…or invite by email (no Microsoft needed)</h4>
+                    <form method="POST" action="{{ route('vpn.mfa.save', $company) }}" class="flex flex-wrap items-center gap-2 mb-3 max-w-2xl">@csrf
+                        <label class="text-sm">Two-factor sign-in (authenticator app with QR code) for these accounts:</label>
+                        <select name="mfa_mode" class="{{ $input }}">
+                            @foreach(\App\Services\Vpn\VpnMfa::MODES as $k => $l)<option value="{{ $k }}" @selected($mfaCompany === $k)>{{ $l }}</option>@endforeach
+                        </select>
+                        <button class="{{ $btn2 }}">Save</button>
+                        <span class="text-xs text-gray-500 w-full">Required: everyone sets up Google Authenticator (or similar) at their first sign-in. Optional: people can turn it on on the VPN page. Each person can be set differently under Edit. Microsoft 365 accounts use Microsoft's own MFA.</span>
+                    </form>
                     <p class="text-xs text-gray-500 mb-2">For companies without Microsoft Entra. The person gets an email with a link (valid 7 days) to set their own password, then signs in on the VPN page with their email and password.</p>
                     @error('invite')<p class="text-sm text-red-600 dark:text-red-400 mb-2">{{ $message }}</p>@enderror
                     @error('edit')<p class="text-sm text-red-600 dark:text-red-400 mb-2">{{ $message }}</p>@enderror
                     <form method="POST" action="{{ route('vpn.users.invite', $company) }}" class="flex flex-wrap gap-2 max-w-2xl">@csrf
                         <input name="name" value="{{ old('name') }}" placeholder="Full name" required maxlength="120" class="flex-1 min-w-[10rem] {{ $input }}">
                         <input name="email" type="email" value="{{ old('email') }}" placeholder="name@company.com" required class="flex-1 min-w-[12rem] {{ $input }}">
+                        <select name="mfa_mode" class="{{ $input }}" aria-label="Two-factor sign-in for this person">
+                            <option value="">2FA: company setting ({{ strtolower(\App\Services\Vpn\VpnMfa::MODES[$mfaCompany]) }})</option>
+                            @foreach(\App\Services\Vpn\VpnMfa::MODES as $k => $l)<option value="{{ $k }}" @selected(old('mfa_mode') === $k)>2FA: {{ strtolower($l) }}</option>@endforeach
+                        </select>
                         <button class="{{ $btn }}">Send invitation</button>
                     </form>
                 @endif

@@ -236,3 +236,17 @@ throttled, identified by the device's WireGuard public key):
   email instead). 5 per device per hour.
 
 Tickets are listed on the company's VPN page and open at `/companies/{id}/vpn/support/{n}`.
+
+
+## Two-factor sign-in for email-and-password accounts (v0.10.0)
+
+* `vpn_companies.mfa_mode` = `optional` (default) | `required`; `vpn_users.mfa_mode` = null (company) | `optional` |
+  `required`. Service: `App\Services\Vpn\VpnMfa` (TOTP via pragmarx/google2fa, QR via bacon-qr-code — both come
+  with laravel/fortify).
+* Flow: password OK → if two-factor is on: `/vpn/mfa` (code or recovery code) → session. If required but not set up:
+  `/vpn/mfa/setup` (QR + key, confirm with a code) → recovery codes page → session. Optional: staff page
+  "Turn on two-factor" (`/vpn/mfa/setup`), "Turn off" (`POST /vpn/mfa/disable`, needs a current code).
+* `mfa_secret` is encrypted; `mfa_recovery` holds SHA-256 hashes of 8 codes (encrypted); `mfa_last_step` stops a
+  code being reused. Wrong codes count with wrong passwords (5 → locked 15 minutes).
+* A session ends when two-factor becomes required for someone who hasn't set it up.
+* Admin: company setting form, per-person select in Edit and in the invite form, "Reset two-factor".
