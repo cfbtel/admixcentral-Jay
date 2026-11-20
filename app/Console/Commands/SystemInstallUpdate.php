@@ -285,6 +285,25 @@ class SystemInstallUpdate extends Command
             ->timeout(300)
             ->run([$npmBin, 'run', 'build']);
 
+        // Fallbacks seen on servers: "vite: not found" (missing or unusable node_modules/.bin link).
+        // 1) run Vite directly with node; 2) reinstall the packages from package-lock.json and build again.
+        if (!$result->successful()) {
+            Log::warning('SystemInstallUpdate: npm run build failed, trying fallbacks', ['error' => $result->errorOutput()]);
+            $nodeBin = trim((string) shell_exec('command -v node 2>/dev/null'));
+            $viteJs = base_path('node_modules/vite/bin/vite.js');
+            if ($nodeBin && is_file($viteJs)) {
+                $result = Process::path(base_path())->timeout(300)->run([$nodeBin, $viteJs, 'build']);
+            }
+            if (!$result->successful()) {
+                $install = Process::path(base_path())->timeout(600)->run([$npmBin, 'ci', '--no-audit', '--no-fund']);
+                if ($install->successful()) {
+                    $result = Process::path(base_path())->timeout(300)->run([$npmBin, 'run', 'build']);
+                } else {
+                    Log::warning('SystemInstallUpdate: npm ci failed', ['error' => $install->errorOutput()]);
+                }
+            }
+        }
+
         if ($result->successful()) {
             $this->info('Frontend assets compiled successfully.');
         } else {

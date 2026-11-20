@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.12.2
+- Updates rebuild the look of the app again. On this server the rebuild step stopped with "vite: not found", so new
+  colours and layouts never appeared after an update. If that happens now, the updater runs Vite directly, and if
+  that fails too it reinstalls the build tools and tries again.
+
 ### Fixed — v0.12.1
 - **Email sign-in links work again.** Opening the link now shows a "Continue as …" page and signs you in when you
   click Continue. Before, mail scanners such as Microsoft Defender opened the one-time link first and used it up,
