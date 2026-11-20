@@ -214,14 +214,28 @@ class Microsoft
             $notApproved = $res->json('error') === 'invalid_client' || preg_match('/AADSTS(65001|700016|7000229)/', $desc);
             throw new VpnException($notApproved ? 'This company hasn\'t approved the CFBTEL VPN app in Microsoft 365 yet.' : (strtok($desc, "\r\n") ?: 'Microsoft token request failed.'));
         }
-        Cache::put($cacheKey, $token, now()->addSeconds(max(60, (int) $res->json('expires_in', 3600) - 120)));
+        // Right after an app gets admin consent, Microsoft can still hand out tokens without the new permissions
+        // for a few minutes. Keep such a token only briefly, so the permissions are picked up as soon as they're live.
+        $claims = json_decode(self::unb64u(explode('.', $token)[1] ?? ''), true);
+        $ttl = !empty($claims['roles']) ? max(60, (int) $res->json('expires_in', 3600) - 120) : 30;
+        Cache::put($cacheKey, $token, now()->addSeconds($ttl));
         return $token;
+    }
+
+    private function forgetToken(string $tenantId): void
+    {
+        Cache::forget('vpn_ms_token:' . sha1($this->clientId . '|' . $tenantId));
     }
 
     /** @return array<string, mixed>|null null on 404 */
     private function graph(string $tenantId, string $path, array $headers = []): ?array
     {
         $res = Http::withToken($this->appToken($tenantId))->withHeaders($headers)->acceptJson()->timeout(20)->get(self::GRAPH . '/v1.0' . $path);
+        if ($res->status() === 403) {
+            // Possibly a token from before the permissions were granted: get a fresh one and try once more.
+            $this->forgetToken($tenantId);
+            $res = Http::withToken($this->appToken($tenantId))->withHeaders($headers)->acceptJson()->timeout(20)->get(self::GRAPH . '/v1.0' . $path);
+        }
         if ($res->status() === 404) {
             return null;
         }
@@ -265,6 +279,10 @@ class Microsoft
     private function graphPost(string $tenantId, string $path, array $body): array
     {
         $res = Http::withToken($this->appToken($tenantId))->acceptJson()->timeout(20)->post(self::GRAPH . '/v1.0' . $path, $body);
+        if ($res->status() === 403) {
+            $this->forgetToken($tenantId);
+            $res = Http::withToken($this->appToken($tenantId))->acceptJson()->timeout(20)->post(self::GRAPH . '/v1.0' . $path, $body);
+        }
         if (!$res->successful()) {
             $msg = (string) $res->json('error.message', "Microsoft Graph error {$res->status()}");
             throw new VpnException($res->status() === 403 ? "Microsoft refused to read group membership ({$msg}). The app needs the GroupMember.Read.All permission: run the automatic Microsoft 365 setup again." : $msg);
@@ -296,7 +314,7 @@ class Microsoft
             $res = $this->graph($tenantId, $path, ['ConsistencyLevel' => 'eventual']);
         } catch (VpnException $e) {
             throw str_contains($e->getMessage(), 'Insufficient privileges') || str_contains($e->getMessage(), 'Authorization_RequestDenied')
-                ? new VpnException('The company\'s Microsoft app can\'t read groups yet (GroupMember.Read.All). Run the automatic Microsoft 365 setup again.')
+                ? new VpnException('Microsoft hasn\'t switched on the app\'s permission to read groups yet (GroupMember.Read.All). Right after setup this can take a few minutes; try again shortly. If it keeps happening, run the automatic Microsoft 365 setup again.')
                 : $e;
         }
         return array_map([self::class, 'toGroup'], $res['value'] ?? []);

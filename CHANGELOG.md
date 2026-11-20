@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.12.4
+- Right after the automatic Microsoft 365 setup, searching groups said the app "can't read groups yet" for up to an
+  hour. Microsoft can take a few minutes to switch on a new app's permissions, and PFCentral kept the first
+  (permission-less) access token for an hour. Such a token is now kept for 30 seconds only, and a refused request
+  is retried once with a fresh token, so groups show up as soon as Microsoft is ready.
+
 ### Added — v0.12.3
 - **Sign-in → "Set up automatically with Microsoft 365"**: one click, sign in as a Global Administrator of your
   Microsoft 365, and PFCentral creates the "PFCentral sign-in" app in your tenant with the sign-in address,
