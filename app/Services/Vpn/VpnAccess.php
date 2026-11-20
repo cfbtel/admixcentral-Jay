@@ -53,8 +53,8 @@ class VpnAccess
         $ids = VpnAccessGroupLink::where('provider', 'microsoft')
             ->whereIn('vpn_access_group_id', VpnAccessGroup::where('company_id', $vc->company_id)->select('id'))
             ->pluck('external_id')->all();
-        if ($vc->access_group_id) {
-            $ids[] = $vc->access_group_id;
+        foreach ($vc->companyGroups() as $g) {
+            $ids[] = $g['id'];
         }
         return array_values(array_unique(array_map('strtolower', $ids)));
     }

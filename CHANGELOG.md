@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — v0.8.8
+- Microsoft 365 groups are picked with a type-to-search dropdown instead of "Search groups" reloading the page:
+  results appear as you type, you can pick several (shown as chips with × to remove), then save once.
+- The whole company can now use several Microsoft 365 groups (was one). The old group carries over.
+- Access groups take their Microsoft 365 groups in the same form as their firewalls and people.
+
 ### Fixed — v0.8.7
 - One-click Microsoft 365 setup stopped with "Microsoft refused to read the organization … Insufficient privileges":
   the setup sign-in now also asks for `User.Read` (needed to read the organization's name and domains), and if that

@@ -13,9 +13,9 @@ class VpnCompany extends Model
 {
     protected $table = 'vpn_companies';
     protected $fillable = ['company_id', 'ms_tenant_id', 'ms_tenant_name', 'ms_client_id', 'ms_client_secret', 'email_domains',
-        'ms_app_object_id', 'ms_secret_key_id', 'ms_secret_expires_at', 'ms_auto_setup_at', 'access_group_id', 'access_group_name'];
+        'ms_app_object_id', 'ms_secret_key_id', 'ms_secret_expires_at', 'ms_auto_setup_at', 'access_group_id', 'access_group_name', 'access_groups'];
     protected $hidden = ['ms_client_secret'];
-    protected $casts = ['ms_client_secret' => 'encrypted', 'ms_secret_expires_at' => 'datetime', 'ms_auto_setup_at' => 'datetime'];
+    protected $casts = ['ms_client_secret' => 'encrypted', 'ms_secret_expires_at' => 'datetime', 'ms_auto_setup_at' => 'datetime', 'access_groups' => 'array'];
 
     public function company()
     {
@@ -30,6 +30,12 @@ class VpnCompany extends Model
     public function hasOwnApp(): bool
     {
         return $this->ms_tenant_id && $this->ms_client_id && $this->getRawOriginal('ms_client_secret');
+    }
+
+    /** Microsoft 365 groups whose members get VPN access. @return array<int, array{id: string, name: string}> */
+    public function companyGroups(): array
+    {
+        return array_values(array_filter((array) ($this->access_groups ?? []), fn ($g) => is_array($g) && !empty($g['id'])));
     }
 
     /** @return string[] lower-case domains, e.g. ["acme.com"] */

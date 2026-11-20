@@ -159,9 +159,10 @@
                                         </summary>
                                         @if($canManage)
                                             @include('vpn.admin._access-group-form', ['ag' => $ag])
-                                            @if($ag->links->isNotEmpty())
+                                            @php $otherLinks = $ag->links->where('provider', '!=', 'microsoft'); @endphp
+                                            @if($otherLinks->isNotEmpty())
                                                 <ul class="mt-2 text-sm space-y-1">
-                                                    @foreach($ag->links as $ln)
+                                                    @foreach($otherLinks as $ln)
                                                         <li class="flex items-center justify-between gap-3 max-w-xl">
                                                             <span>{{ $ln->providerName() }} group <strong>{{ $ln->external_name ?: $ln->external_id }}</strong> — its members are in this group</span>
                                                             <form method="POST" action="{{ route('vpn.access-groups.unlink', [$company, $ln]) }}" onsubmit="return confirm('Unlink this group? Its members lose this access at the next sync.')">@csrf<button class="{{ $btnRed }}">Unlink</button></form>
@@ -169,7 +170,6 @@
                                                     @endforeach
                                                 </ul>
                                             @endif
-                                            <p class="text-xs text-gray-500 mt-2">@if($vc->ms_tenant_id) Link a Microsoft 365 group to this access group with “Search groups” below. @else Connect Microsoft 365 to link its groups. @endif</p>
                                             <form method="POST" action="{{ route('vpn.access-groups.delete', [$company, $ag]) }}" class="mt-2" onsubmit="return confirm('Delete the access group {{ addslashes($ag->name) }}? Its members lose its firewalls at the next sync{{ $accessGroups->count() === 1 ? ', and every firewall opens to everyone with VPN access' : '' }}.')">@csrf<button class="{{ $btnRed }}">Delete group</button></form>
                                         @endif
                                     </details>
@@ -188,45 +188,21 @@
                     @endif
                 </div>
 
-                {{-- Microsoft 365 groups --}}
+                {{-- Microsoft 365 groups for the whole company --}}
                 <div class="mb-6 p-4 rounded border border-gray-200 dark:border-gray-700 max-w-4xl">
-                    <p class="text-sm font-semibold">Microsoft 365 groups <span class="font-normal text-gray-500">(optional)</span></p>
-                    <ul class="text-sm mt-2 space-y-1">
-                        <li class="flex items-center justify-between gap-3">
-                            <span>Whole company: @if($vc->access_group_id) members of <strong>{{ $vc->access_group_name }}</strong> get VPN access automatically @else <span class="text-gray-500">no group — only the people listed below and members of groups linked to access groups</span> @endif</span>
-                            @if($canManage && $vc->access_group_id)
-                                <form method="POST" action="{{ route('vpn.groups.clear', $company) }}" onsubmit="return confirm('Stop using this group? People who came in through it lose access at the next sync.')">@csrf<input type="hidden" name="target" value="company"><button class="{{ $btnRed }}">Remove</button></form>
-                            @endif
-                        </li>
-                    </ul>
-                    <p class="text-xs text-gray-500 mt-2">Members of the company's group, or of a group linked to an access group, get VPN access without being added one by one (nested groups count). Leaving the group removes that access within 15 minutes. People added by hand below keep access.</p>
+                    <p class="text-sm font-semibold">Microsoft 365 groups that give VPN access <span class="font-normal text-gray-500">(optional)</span></p>
+                    <p class="text-xs text-gray-500 mt-1">Members of these groups get VPN access without being added one by one (nested groups count). Leaving a group removes that access within 15 minutes. People added by hand below keep access. To decide which firewalls someone uses, add groups inside an access group above.</p>
                     @if($canManage && $vc->ms_tenant_id)
-                        <form method="GET" action="{{ route('vpn.company', $company) }}" class="flex gap-2 mt-3">
-                            <input name="gq" value="{{ $gq }}" placeholder="Search this company's Microsoft 365 groups, e.g. VPN" class="flex-1 {{ $input }}">
-                            <button class="{{ $btn2 }}" name="groups" value="1">Search groups</button>
+                        <form method="POST" action="{{ route('vpn.groups.company', $company) }}" class="mt-3 flex flex-col sm:flex-row gap-2 sm:items-start">@csrf
+                            <div class="flex-1">@include('vpn.admin._ms-group-picker', ['pickerName' => 'ms_groups', 'pickerSelected' => $vc->companyGroups()])</div>
+                            <button class="{{ $btn2 }} shrink-0">Save groups</button>
                         </form>
-                        @if($groupError)<p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $groupError }}</p>@endif
-                        @if($groupResults !== null)
-                            <ul class="mt-3 divide-y divide-gray-200 dark:divide-gray-700">
-                                @forelse($groupResults as $g)
-                                    <li class="py-2 flex items-center justify-between gap-3">
-                                        <div><div class="text-sm font-medium">{{ $g['name'] }}</div><div class="text-xs text-gray-500">{{ $g['m365'] ? 'Microsoft 365 group' : ($g['security'] ? 'Security group' : 'Group') }}@if($g['description']) · {{ \Illuminate\Support\Str::limit($g['description'], 60) }}@endif</div></div>
-                                        <form method="POST" action="{{ route('vpn.groups.assign', $company) }}" class="flex gap-2">@csrf
-                                            <input type="hidden" name="group_id" value="{{ $g['id'] }}">
-                                            <select name="target" class="{{ $input }} text-sm">
-                                                <option value="company">Whole company (VPN access)</option>
-                                                @foreach($accessGroups as $ag)<option value="group:{{ $ag->id }}">Access group: {{ $ag->name }}</option>@endforeach
-                                            </select>
-                                            <button class="{{ $btn2 }}">Use</button>
-                                        </form>
-                                    </li>
-                                @empty
-                                    <li class="py-2 text-sm text-gray-500">No matching groups{{ $gq !== '' ? " for “{$gq}”" : '' }}.</li>
-                                @endforelse
-                            </ul>
-                        @endif
+                    @elseif($vc->companyGroups())
+                        <p class="text-sm mt-2">{{ collect($vc->companyGroups())->pluck('name')->join(', ') }}</p>
                     @elseif($canManage)
                         <p class="text-xs text-gray-500 mt-2">Connect Microsoft 365 first to use its groups.</p>
+                    @else
+                        <p class="text-sm text-gray-500 mt-2">None.</p>
                     @endif
                 </div>
                 <div class="overflow-x-auto">

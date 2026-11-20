@@ -825,6 +825,7 @@ class VpnModuleTest extends TestCase
 
     private const G_VPN = '99999999-0000-0000-0000-00000000000a';
     private const G_SITE2 = '99999999-0000-0000-0000-00000000000b';
+    private const G_OTHER = '99999999-0000-0000-0000-00000000000c';
 
     /** Acme onboarded, plus a second ready firewall ("Acme Branch"). */
     private function twoSites(array $w): array
@@ -842,11 +843,26 @@ class VpnModuleTest extends TestCase
         $site = $this->onboard($w);
         $this->ms->groups = [self::G_VPN => ['name' => 'VPN', 'members' => [$this->ms->people['carl']['oid']]]];
 
-        // The admin finds the group and uses it for the whole company.
-        $page = $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn?gq=vp&groups=1")->assertOk()->assertSee('VPN')->assertSee('Whole company');
-        $this->console($w['acmeReader'])->post("/companies/{$w['acme']->id}/vpn/groups/assign", ['group_id' => self::G_VPN, 'target' => 'company'])->assertForbidden();
-        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/groups/assign", ['group_id' => self::G_VPN, 'target' => 'company'])->assertSessionHas('success');
-        $this->assertSame('VPN', VpnCompany::where('company_id', $w['acme']->id)->value('access_group_name'));
+        $base = "/companies/{$w['acme']->id}/vpn";
+        $this->ms->groups[self::G_OTHER] = ['name' => 'Sales', 'members' => []];
+
+        // The picker searches as you type (JSON), only for the company's admins.
+        $this->console($w['acmeReader'])->getJson("$base/groups/search?q=vp")->assertForbidden();
+        $this->console($w['acmeAdmin'])->getJson("$base/groups/search?q=vp")->assertOk()
+            ->assertJsonFragment(['id' => self::G_VPN, 'name' => 'VPN'])->assertJsonMissing(['name' => 'Sales']);
+        $this->console($w['acmeAdmin'])->get($base)->assertOk()->assertSee('Save groups')->assertSee('msGroupPicker');
+
+        // The admin picks two groups and saves once.
+        $this->console($w['acmeReader'])->post("$base/groups/company", ['ms_groups' => [self::G_VPN]])->assertForbidden();
+        $this->console($w['acmeAdmin'])->post("$base/groups/company", ['ms_groups' => [strtoupper(self::G_VPN), self::G_OTHER]])->assertSessionHas('success');
+        $vc = VpnCompany::where('company_id', $w['acme']->id)->firstOrFail();
+        $this->assertSame([['id' => self::G_VPN, 'name' => 'VPN'], ['id' => self::G_OTHER, 'name' => 'Sales']], $vc->companyGroups());
+        // A group that isn't in this Microsoft 365 is refused and nothing changes.
+        $this->console($w['acmeAdmin'])->post("$base/groups/company", ['ms_groups' => [self::G_VPN, '99999999-0000-0000-0000-0000000000ff']])->assertSessionHas('error');
+        $this->assertCount(2, $vc->fresh()->companyGroups());
+        // Removing a chip and saving drops that group.
+        $this->console($w['acmeAdmin'])->post("$base/groups/company", ['ms_groups' => [self::G_VPN]])->assertSessionHas('success');
+        $this->assertSame([['id' => self::G_VPN, 'name' => 'VPN']], $vc->fresh()->companyGroups());
 
         // Carl isn't on the list but is in the group: he gets in and is added automatically.
         $this->staffSignIn('carl')->assertRedirect('https://vpn.test/vpn');
@@ -863,6 +879,19 @@ class VpnModuleTest extends TestCase
         $this->assertSame([], $this->fw->peers);
         // …and signing in again is refused.
         $this->staffSignIn('carl')->assertForbidden();
+    }
+
+    public function test_the_old_single_company_group_carries_over(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $vc = VpnCompany::where('company_id', $w['acme']->id)->firstOrFail();
+        \Illuminate\Support\Facades\DB::table('vpn_companies')->where('id', $vc->id)->update(['access_groups' => null, 'access_group_id' => strtoupper(self::G_VPN), 'access_group_name' => 'VPN']);
+        (require database_path('migrations/2026_11_20_000002_add_access_groups_to_vpn_companies.php'))->up();
+        $vc->refresh();
+        $this->assertSame([['id' => self::G_VPN, 'name' => 'VPN']], $vc->companyGroups());
+        $this->assertNull($vc->access_group_id);
+        $this->assertSame([self::G_VPN], \App\Services\Vpn\VpnAccess::groupIds($vc));
     }
 
     public function test_access_groups_need_two_firewalls(): void
@@ -916,9 +945,10 @@ class VpnModuleTest extends TestCase
 
         // A Microsoft 365 group linked to Branch: Carl isn't on the list but gets VPN access and both firewalls.
         $this->ms->groups = [self::G_SITE2 => ['name' => 'Branch VPN', 'members' => [$this->ms->people['carl']['oid']]]];
-        $this->console($w['acmeAdmin'])->get("$base?gq=branch&groups=1")->assertOk()->assertSee('Access group: Branch');
-        $this->console($w['acmeAdmin'])->post("$base/groups/assign", ['group_id' => self::G_SITE2, 'target' => 'group:' . $branch->id])->assertSessionHas('success');
-        $this->assertSame(['microsoft', self::G_SITE2], [$branch->links()->value('provider'), $branch->links()->value('external_id')]);
+        $this->console($w['acmeAdmin'])->getJson("$base/groups/search?q=branch")->assertOk()->assertJsonFragment(['name' => 'Branch VPN']);
+        $this->console($w['acmeAdmin'])->post("$base/access-groups/{$branch->id}", ['name' => 'Branch', 'sites' => [$site2->id], 'users' => [$ann->id], 'ms_groups_present' => 1, 'ms_groups' => [self::G_SITE2]])->assertSessionHas('success');
+        $this->assertSame(['microsoft', self::G_SITE2, 'Branch VPN'], [$branch->links()->value('provider'), $branch->links()->value('external_id'), $branch->links()->value('external_name')]);
+        $this->console($w['acmeAdmin'])->get($base)->assertOk()->assertSee('Branch VPN');
         $this->staffSignIn('carl')->assertRedirect();
         $this->get(self::PORTAL . '/vpn')->assertOk()->assertSee('Acme Branch')->assertSee('Acme HQ');
         $this->post(self::PORTAL . '/vpn/devices', ['site' => $site2->id, 'name' => 'Carl laptop', 'platform' => 'windows'])->assertOk();

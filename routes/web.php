@@ -883,6 +883,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'show'])->name('vpn.company');
         Route::post('/microsoft', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveMicrosoft'])->middleware('deny.readonly')->name('vpn.microsoft.save');
         Route::post('/microsoft/own-app/remove', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'removeOwnApp'])->middleware('deny.readonly')->name('vpn.microsoft.remove');
+        Route::get('/groups/search', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'searchGroups'])->middleware('throttle:60,1')->name('vpn.groups.search');
+        Route::post('/groups/company', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveCompanyGroups'])->middleware('deny.readonly')->name('vpn.groups.company');
         Route::post('/groups/assign', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'assignGroup'])->middleware('deny.readonly')->name('vpn.groups.assign');
         Route::post('/groups/clear', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'clearGroup'])->middleware('deny.readonly')->name('vpn.groups.clear');
         Route::post('/access-groups', [App\Http\Controllers\Vpn\CompanyVpnController::class, 'saveAccessGroup'])->middleware('deny.readonly')->name('vpn.access-groups.store');

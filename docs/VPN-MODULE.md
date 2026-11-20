@@ -91,11 +91,14 @@ access uses it.
 * Upgrading to v0.8.5 turns each old "only for one firewall" Microsoft group into an access group for that
   firewall, and puts the company's other firewalls in an "Everyone" group, so nobody loses access.
 
-**Microsoft 365 groups:** search the company's groups (e.g. "VPN") and use one:
-* **Whole company (VPN access):** members get VPN access without being added one by one; they're added the first
-  time they sign in ("through group"). Nested groups count.
-* **Access group: …:** links it to that access group. Its members are members of the access group (and get VPN
-  access for it even when they aren't in the company group).
+**Microsoft 365 groups:** pick them in a type-to-search box: results drop down as you type (arrow keys + Enter or a
+click adds one, × or Backspace removes one), pick as many as needed (up to 20), then save once.
+* **"Microsoft 365 groups that give VPN access"** (whole company): members get VPN access without being added one by
+  one; they're added the first time they sign in ("through group"). Nested groups count.
+* **Inside an access group** ("…and members of these Microsoft 365 groups"): saved with the group's form. Their
+  members are members of the access group (and get VPN access for it even when they aren't in a company group).
+* Search: `GET /companies/{id}/vpn/groups/search?q=` (JSON, company admins only). Every new group ID is checked
+  with Microsoft before it's saved. Upgrading to v0.8.8 moves the old single company group into the new list.
 
 Changes reach devices within 15 minutes (`vpn:sync`): people who came in through a Microsoft group lose access when
 they're in none of the company's groups any more, and anyone loses their devices on firewalls none of their access
