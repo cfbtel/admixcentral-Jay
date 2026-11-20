@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.8.9
+- "Turn off VPN for this firewall" said "Remove this site's devices first" even with no devices left: devices
+  already removed but still waiting for the firewall to confirm ("being removed") counted. Now only devices that
+  can still connect block it (and are named); the waiting ones are taken off the firewall and cleared. If the
+  firewall doesn't answer, it's turned off anyway and the leftover peer names (cfbvpn-…) are listed to delete by hand.
+
 ### Changed — v0.8.8
 - Microsoft 365 groups are picked with a type-to-search dropdown instead of "Search groups" reloading the page:
   results appear as you type, you can pick several (shown as chips with × to remove), then save once.

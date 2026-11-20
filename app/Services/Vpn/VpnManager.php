@@ -122,6 +122,24 @@ class VpnManager
     }
 
     /**
+     * Finish removing a site's switched-off devices: take their peers off the firewall and forget them.
+     * Throws if the firewall can't be reached (the rows stay, the sync retries).
+     */
+    public function clearRevoked(VpnSite $site): int
+    {
+        $site->loadMissing('firewall');
+        $keys = VpnDevice::where('vpn_site_id', $site->id)->whereNotNull('revoked_at')->pluck('public_key')->all();
+        if (!$keys) {
+            return 0;
+        }
+        return $this->locked($site, function () use ($site, $keys) {
+            $n = $site->tunnel ? $this->driver($site)->removePeers($site->tunnel, $keys) : 0;
+            VpnDevice::where('vpn_site_id', $site->id)->whereNotNull('revoked_at')->delete();
+            return $n;
+        });
+    }
+
+    /**
      * Take away a person's VPN access: their devices are revoked at once and removed from the firewalls.
      *
      * @return array{removed: int, pending: int}

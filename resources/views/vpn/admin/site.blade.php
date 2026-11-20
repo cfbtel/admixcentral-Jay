@@ -83,7 +83,7 @@
             @if($canManage)
                 <div class="{{ $card }}">
                     <h3 class="font-semibold mb-2">Turn off VPN for this firewall</h3>
-                    <p class="text-sm text-gray-500 mb-3">Stops managing it in AdmixCentral. Nothing on the firewall is changed. Remove its devices first.</p>
+                    <p class="text-sm text-gray-500 mb-3">Stops managing it in AdmixCentral. The WireGuard tunnel on the firewall is left as it is. Remove its devices first (devices already being removed don't count).</p>
                     <form method="POST" action="{{ route('vpn.site.delete', [$company, $site]) }}" onsubmit="return confirm('Turn off VPN management for this firewall?')">@csrf<button class="{{ $btnRed }}">Turn off</button></form>
                 </div>
             @endif

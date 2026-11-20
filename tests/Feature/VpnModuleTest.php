@@ -894,6 +894,49 @@ class VpnModuleTest extends TestCase
         $this->assertSame([self::G_VPN], \App\Services\Vpn\VpnAccess::groupIds($vc));
     }
 
+    public function test_vpn_can_be_turned_off_when_only_switched_off_devices_are_left(): void
+    {
+        $w = $this->world();
+        $site = $this->onboard($w);
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->addDevice('Ann phone')->assertOk();
+        $this->addDevice('Ann laptop')->assertOk();
+        $url = "/companies/{$w['acme']->id}/vpn/sites/{$site->id}/delete";
+
+        // A device that can still connect blocks it, and is named.
+        $this->console($w['acmeAdmin'])->post($url)->assertSessionHas('error', fn ($m) => str_contains($m, 'Ann phone (ann@acme.com)'));
+
+        // The firewall is down when the devices are removed: they stay "being removed".
+        $this->fw->down = true;
+        foreach (VpnDevice::all() as $d) {
+            $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/devices/{$d->id}/remove");
+        }
+        $this->assertSame(2, VpnDevice::whereNotNull('revoked_at')->count());
+
+        // Firewall back: turning off finishes removing them (peers gone from the firewall) and works.
+        $this->fw->down = false;
+        $this->console($w['acmeAdmin'])->post($url)->assertSessionHas('success');
+        $this->assertNull(VpnSite::find($site->id));
+        $this->assertSame([], $this->fw->peers);
+        $this->assertSame(0, VpnDevice::count());
+    }
+
+    public function test_turning_off_vpn_with_the_firewall_down_names_the_leftover_peers(): void
+    {
+        $w = $this->world();
+        $site = $this->onboard($w);
+        $this->grant($w['global'], $w['acme'], 'ann');
+        $this->staffSignIn('ann')->assertRedirect();
+        $this->addDevice('Ann phone')->assertOk();
+        $id = VpnDevice::firstOrFail()->id;
+        $this->fw->down = true;
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/devices/{$id}/remove");
+        $this->console($w['acmeAdmin'])->post("/companies/{$w['acme']->id}/vpn/sites/{$site->id}/delete")
+            ->assertSessionHas('warning', fn ($m) => str_contains($m, "cfbvpn-{$id}"));
+        $this->assertNull(VpnSite::find($site->id));
+    }
+
     public function test_access_groups_need_two_firewalls(): void
     {
         $w = $this->world();

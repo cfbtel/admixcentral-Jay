@@ -642,12 +642,25 @@ class CompanyVpnController extends Controller
     {
         $this->authorizeManage($request, $company);
         $site = $this->siteOf($company, $site);
-        if ($site->devices()->exists()) {
-            return back()->with('error', 'Remove this site\'s devices first (or the people who own them).');
+        // Only devices that can still connect block this; switched-off ones ("being removed") are finished here.
+        $active = $site->devices()->whereNull('revoked_at')->with('user')->get();
+        if ($active->isNotEmpty()) {
+            return back()->with('error', 'Remove this firewall\'s devices first (or the people who own them): '
+                . $active->map(fn ($d) => $d->name . ($d->user ? " ({$d->user->upn})" : ''))->join(', ') . '.');
+        }
+        $leftover = '';
+        $stale = $site->devices()->pluck('id');
+        if ($stale->isNotEmpty()) {
+            try {
+                $this->vpn->clearRevoked($site);
+            } catch (\Throwable $e) {
+                $leftover = ' The firewall didn\'t answer, so these old WireGuard peers may still be on it — delete them there by hand: '
+                    . $stale->map(fn ($id) => "cfbvpn-{$id}")->join(', ') . '.';
+            }
         }
         $name = $site->firewall->name;
         $site->delete();
-        VpnAuditLog::record($company->id, $this->actor($request), "site_removed {$name}");
-        return redirect()->route('vpn.company', $company)->with('success', "VPN turned off for {$name} in AdmixCentral. Nothing on the firewall was changed.");
+        VpnAuditLog::record($company->id, $this->actor($request), "site_removed {$name}" . ($stale->isNotEmpty() ? " ({$stale->count()} switched-off device(s) cleared)" : ''));
+        return redirect()->route('vpn.company', $company)->with($leftover ? 'warning' : 'success', "VPN turned off for {$name} in AdmixCentral. The WireGuard tunnel on the firewall was left as it is." . $leftover);
     }
 }
