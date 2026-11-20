@@ -17,6 +17,8 @@ class PfSenseWireGuardDriver implements WireGuardDriver
 {
     private const DESCR = 'CFBTEL VPN';
     private const ALIAS = 'CFBVPN_Private_Nets';
+    /** Interface group the WireGuard package creates for its tunnels (Firewall → Rules → WireGuard). */
+    private const IFGROUP = 'WireGuard';
     public const PACKAGE = 'pfSense-pkg-WireGuard';
     /** Installing a package downloads it on the firewall: allow a few minutes. */
     public const INSTALL_TIMEOUT = 300;
@@ -144,6 +146,7 @@ class PfSenseWireGuardDriver implements WireGuardDriver
             throw $e;
         }
         return array_map(fn ($t) => [
+            'id' => $t['id'] ?? null,
             'ref' => (string) ($t['name'] ?? ''),
             'name' => (string) ($t['descr'] ?? $t['name'] ?? ''),
             'listen_port' => (int) ($t['listenport'] ?? 0),
@@ -151,11 +154,20 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         ], $rows);
     }
 
+    /**
+     * Sets up WireGuard on the firewall. Safe to run again after a stop: a "CFBTEL VPN" tunnel on the same port
+     * with no devices yet is reused, and rules, the alias, NAT and DNS entries that already exist are skipped.
+     *
+     * pfSense's REST API can't assign a WireGuard tunnel as an interface, so the tunnel gets its address itself and
+     * the rules go on pfSense's "WireGuard" interface group (Firewall → Rules → WireGuard). A tunnel that was
+     * assigned by hand keeps its interface and its rules go there.
+     */
     public function setup(array $input): array
     {
         $log = [];
         $bits = (int) explode('/', $input['subnet'])[1];
         $gateway = WireGuard::firstHost($input['subnet']);
+        $network = explode('/', $input['subnet'])[0];
 
         if ($this->ensurePackage()) {
             $log[] = 'WireGuard package installed';
@@ -163,46 +175,40 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         $this->withPackage(fn () => $this->api->patch('/vpn/wireguard/settings', ['enable' => true, 'keep_conf' => true]));
         $log[] = 'WireGuard enabled';
 
-        foreach ($this->tunnels() as $t) {
-            if ($t['name'] === self::DESCR) {
-                throw new VpnException("A \"" . self::DESCR . "\" tunnel ({$t['ref']}) already exists on this firewall. Use \"Adopt existing tunnel\" instead.");
+        $address = [['address' => $gateway, 'mask' => $bits, 'descr' => self::DESCR]];
+        $existing = collect($this->tunnels())->firstWhere('name', self::DESCR);
+        if ($existing) {
+            if ((int) $existing['listen_port'] !== (int) $input['listen_port'] || $this->rawPeers($existing['ref']) !== []) {
+                throw new VpnException("A \"" . self::DESCR . "\" tunnel ({$existing['ref']}, UDP {$existing['listen_port']}) already exists on this firewall. Use \"Adopt an existing tunnel\" instead.");
             }
+            // An earlier setup stopped part-way: finish it on the same tunnel.
+            $this->api->patch('/vpn/wireguard/tunnel', ['id' => $existing['id'], 'enabled' => true, 'addresses' => $address]);
+            $keys = null;
+            $log[] = "Tunnel {$existing['ref']} from the earlier attempt reused";
+        } else {
+            $keys = WireGuard::keyPair();
+            $this->api->post('/vpn/wireguard/tunnel', [
+                'enabled' => true,
+                'descr' => self::DESCR,
+                'listenport' => (string) $input['listen_port'],
+                'privatekey' => $keys['private'],
+                'mtu' => 1420,
+                'addresses' => $address,
+            ]);
         }
-        $keys = WireGuard::keyPair();
-        $this->api->post('/vpn/wireguard/tunnel', [
-            'enabled' => true,
-            'descr' => self::DESCR,
-            'listenport' => (string) $input['listen_port'],
-            'privatekey' => $keys['private'],
-            'mtu' => 1420,
-        ]);
         $this->api->post('/vpn/wireguard/apply', []);
         $tunnel = collect($this->tunnels())->firstWhere('name', self::DESCR);
         if (!$tunnel) {
             throw new VpnException('The tunnel was not created.');
         }
-        $log[] = "Tunnel {$tunnel['ref']} created on UDP {$input['listen_port']}";
+        if ($keys) {
+            $log[] = "Tunnel {$tunnel['ref']} created on UDP {$input['listen_port']} ({$gateway}/{$bits})";
+        }
 
-        $iface = $this->data($this->api->post('/interface', [
-            'if' => $tunnel['ref'],
-            'enable' => true,
-            'descr' => 'CFBTEL_VPN',
-            'typev4' => 'static',
-            'ipaddr' => $gateway,
-            'subnet' => $bits,
-            'typev6' => 'none',
-            'mtu' => 1420,
-        ]));
-        $this->api->post('/interface/apply', []);
-        $interfaceId = $iface['id'] ?? null;
-        if (!$interfaceId) {
-            $all = $this->data($this->api->get('/interfaces', ['limit' => 0]));
-            $interfaceId = collect($all)->firstWhere('if', $tunnel['ref'])['id'] ?? null;
-        }
-        if (!$interfaceId) {
-            throw new VpnException('Assigning the WireGuard interface failed.');
-        }
-        $log[] = "Interface {$interfaceId} = {$gateway}/{$bits}";
+        // Rules go on the tunnel's own interface if it was assigned by hand, otherwise on the WireGuard group.
+        $assigned = collect($this->data($this->api->get('/interfaces', ['limit' => 0])))->firstWhere('if', $tunnel['ref']);
+        $ruleIface = $assigned['id'] ?? self::IFGROUP;
+        $log[] = $assigned ? "Rules on interface {$ruleIface}" : 'Rules on the WireGuard interface group';
 
         $aliases = array_column($this->data($this->api->get('/firewall/aliases', ['limit' => 0])), 'name');
         if (!in_array(self::ALIAS, $aliases, true)) {
@@ -216,30 +222,89 @@ class PfSenseWireGuardDriver implements WireGuardDriver
             $log[] = 'Alias ' . self::ALIAS . ' created';
         }
 
-        $rule = fn (array $r) => $this->api->post('/firewall/rule', array_merge([
-            'interface' => [$interfaceId], 'ipprotocol' => 'inet', 'source' => $input['subnet'], 'statetype' => 'keep state',
-        ], $r));
-        $rule(['type' => 'pass', 'protocol' => 'tcp/udp', 'destination' => '(self)', 'destination_port' => '53', 'descr' => 'CFBTEL VPN: DNS to firewall']);
-        $rule(['type' => 'block', 'destination' => '(self)', 'descr' => 'CFBTEL VPN: block firewall admin']);
-        $rule(['type' => 'pass', 'destination' => $input['lan'], 'descr' => "CFBTEL VPN: allow {$input['lan']} network"]);
-        $rule(['type' => 'block', 'destination' => self::ALIAS, 'descr' => 'CFBTEL VPN: block other private networks']);
-        $rule(['type' => 'pass', 'destination' => 'any', 'descr' => 'CFBTEL VPN: internet (full tunnel)']);
-        $log[] = 'VPN interface rules added';
-
-        $this->api->post('/firewall/rule', [
-            'type' => 'pass', 'interface' => [$input['wan']], 'ipprotocol' => 'inet', 'protocol' => 'udp',
-            'source' => 'any', 'destination' => "{$input['wan']}:ip", 'destination_port' => (string) $input['listen_port'],
+        $have = array_column($this->data($this->api->get('/firewall/rules', ['limit' => 0])), 'descr');
+        $added = 0;
+        $rule = function (array $r) use (&$have, &$added) {
+            if (in_array($r['descr'], $have, true)) {
+                return;
+            }
+            $this->api->post('/firewall/rule', array_merge(['ipprotocol' => 'inet', 'statetype' => 'keep state'], $r));
+            $have[] = $r['descr'];
+            $added++;
+        };
+        $vpn = fn (array $r) => $rule(array_merge(['interface' => [$ruleIface], 'source' => $input['subnet']], $r));
+        $vpn(['type' => 'pass', 'protocol' => 'tcp/udp', 'destination' => '(self)', 'destination_port' => '53', 'descr' => 'CFBTEL VPN: DNS to firewall']);
+        $vpn(['type' => 'block', 'destination' => '(self)', 'descr' => 'CFBTEL VPN: block firewall admin']);
+        $vpn(['type' => 'pass', 'destination' => $input['lan'], 'descr' => "CFBTEL VPN: allow {$input['lan']} network"]);
+        $vpn(['type' => 'block', 'destination' => self::ALIAS, 'descr' => 'CFBTEL VPN: block other private networks']);
+        $vpn(['type' => 'pass', 'destination' => 'any', 'descr' => 'CFBTEL VPN: internet (full tunnel)']);
+        $rule([
+            'type' => 'pass', 'interface' => [$input['wan']], 'protocol' => 'udp', 'source' => 'any',
+            'destination' => "{$input['wan']}:ip", 'destination_port' => (string) $input['listen_port'],
             'descr' => 'CFBTEL VPN: WireGuard',
         ]);
-        $log[] = "WAN rule for UDP {$input['listen_port']} added";
+        $log[] = "Firewall rules: {$added} added";
+
+        // Internet for VPN users: automatic outbound NAT doesn't cover an unassigned tunnel's network.
+        $log[] = $this->ensureOutboundNat($input['wan'], $input['subnet'], (bool) $assigned);
+        // DNS: let the VPN network ask the firewall's DNS Resolver.
+        $log[] = $this->ensureDnsAccess($network, $bits);
 
         $this->api->post('/firewall/apply', []);
-        $log[] = 'Firewall rules applied (outbound NAT must be Automatic or Hybrid)';
+        $log[] = 'Firewall changes applied';
 
-        return ['ref' => $tunnel['ref'], 'name' => self::DESCR, 'public_key' => $tunnel['public_key'] ?: $keys['public'], 'gateway' => $gateway, 'log' => $log];
+        return ['ref' => $tunnel['ref'], 'name' => self::DESCR, 'public_key' => $tunnel['public_key'] ?: ($keys['public'] ?? ''), 'gateway' => $gateway, 'log' => $log];
     }
 
-    /** Peers with their pfrest ids (list positions). */
+    private function ensureOutboundNat(string $wan, string $subnet, bool $assigned): string
+    {
+        $mode = (string) ($this->data($this->api->get('/firewall/nat/outbound/mode'))['mode'] ?? 'automatic');
+        if ($mode === 'disabled') {
+            return 'Outbound NAT is disabled on this firewall: VPN users will not reach the internet until it is set to Hybrid';
+        }
+        if ($assigned && $mode === 'automatic') {
+            return 'Outbound NAT: automatic covers the VPN network';
+        }
+        $descr = 'CFBTEL VPN: outbound NAT';
+        $rules = array_column($this->data($this->api->get('/firewall/nat/outbound/mappings', ['limit' => 0])), 'descr');
+        $note = '';
+        if ($mode === 'automatic') {
+            // Hybrid keeps every automatic rule and adds ours.
+            $this->api->patch('/firewall/nat/outbound/mode', ['mode' => 'hybrid']);
+            $note = 'switched from Automatic to Hybrid (automatic rules are kept), ';
+        }
+        if (!in_array($descr, $rules, true)) {
+            $this->api->post('/firewall/nat/outbound/mapping', [
+                'interface' => $wan, 'source' => $subnet, 'destination' => 'any',
+                'target' => "{$wan}:ip", 'descr' => $descr,
+            ]);
+            return "Outbound NAT: {$note}rule for {$subnet} added";
+        }
+        return "Outbound NAT: {$note}rule for {$subnet} already there";
+    }
+
+    private function ensureDnsAccess(string $network, int $bits): string
+    {
+        try {
+            $lists = $this->data($this->api->get('/services/dns_resolver/access_lists', ['limit' => 0]));
+            foreach ($lists as $l) {
+                foreach ((array) ($l['networks'] ?? []) as $n) {
+                    if (($n['network'] ?? '') === $network && (int) ($n['mask'] ?? -1) === $bits) {
+                        return 'DNS Resolver already allows the VPN network';
+                    }
+                }
+            }
+            $this->api->post('/services/dns_resolver/access_list', [
+                'name' => 'CFBTEL VPN', 'action' => 'allow', 'description' => 'CFBTEL VPN devices',
+                'networks' => [['network' => $network, 'mask' => $bits, 'description' => 'CFBTEL VPN']],
+            ]);
+            $this->api->post('/services/dns_resolver/apply', []);
+            return 'DNS Resolver access allowed for the VPN network';
+        } catch (\Throwable $e) {
+            return 'DNS Resolver access not changed (' . $e->getMessage() . '): if devices can\'t look up names, allow ' . "{$network}/{$bits} under Services → DNS Resolver → Access Lists";
+        }
+    }
+
     private function rawPeers(string $tunnelRef): array
     {
         $out = [];

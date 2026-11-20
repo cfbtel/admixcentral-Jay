@@ -52,7 +52,7 @@
             @elseif($canManage && $interfaces !== null)
                 <div class="{{ $card }}">
                     <h3 class="text-lg font-bold mb-1">Create WireGuard automatically</h3>
-                    <p class="text-sm text-gray-500 mb-4">Creates the tunnel, its firewall rules (DNS to the firewall, block the firewall's admin pages, allow the chosen LAN, block other private networks, internet), the WAN rule{{ $fw->isOpnSense() ? ' and outbound NAT' : '' }}. Full tunnel: devices browse through this office.@if($fw->isPfSense()) Outbound NAT must be Automatic or Hybrid.@endif</p>
+                    <p class="text-sm text-gray-500 mb-4">Creates the tunnel, its firewall rules (DNS to the firewall, block the firewall's admin pages, allow the chosen LAN, block other private networks, internet), the WAN rule and outbound NAT{{ $fw->isPfSense() ? ' (Automatic is switched to Hybrid, which keeps the automatic rules), and lets the VPN network use the DNS Resolver. Installs the WireGuard package if needed' : '' }}. Full tunnel: devices browse through this office.</p>
                     @if(!empty($needsPackage))
                         <p class="text-sm mb-4 p-3 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200">The WireGuard package isn't installed on this firewall yet. <strong>Create WireGuard installs it first</strong> (pfSense downloads it; this can take 1–3 minutes, keep the page open). The AdmixCentral API user needs the <code>api-v2-system-package-post</code> privilege for that.</p>
                     @endif

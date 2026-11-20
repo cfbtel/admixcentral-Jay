@@ -928,6 +928,50 @@ class VpnModuleTest extends TestCase
         $this->assertSame(['name' => 'pfSense-pkg-WireGuard'], $install->data());
     }
 
+    public function test_pfsense_setup_finishes_an_earlier_attempt_without_assigning_the_interface(): void
+    {
+        $fw = Firewall::create(['name' => 'Office', 'company_id' => Company::create(['name' => 'Gamma'])->id, 'url' => 'https://fw.gamma.test', 'os_type' => 'pfsense', 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => 'x3']);
+        $base = 'https://fw.gamma.test/api/v2';
+        $tunnel = ['id' => 0, 'name' => 'tun_wg0', 'descr' => 'CFBTEL VPN', 'listenport' => '51820', 'publickey' => 'SrvPub='];
+        Http::fake([
+            "$base/system/packages*" => Http::response(['data' => [['name' => 'pfSense-pkg-WireGuard']]]),
+            "$base/vpn/wireguard/settings*" => Http::response(['data' => []]),
+            "$base/vpn/wireguard/tunnels*" => Http::response(['data' => [$tunnel]]),
+            "$base/vpn/wireguard/tunnel*" => Http::response(['data' => $tunnel]),
+            "$base/vpn/wireguard/peers*" => Http::response(['data' => []]),
+            "$base/vpn/wireguard/apply*" => Http::response(['data' => []]),
+            "$base/interfaces*" => Http::response(['data' => [['id' => 'wan', 'if' => 'vmx0'], ['id' => 'lan', 'if' => 'vmx1']]]),
+            "$base/firewall/aliases*" => Http::response(['data' => []]),
+            "$base/firewall/alias*" => Http::response(['data' => []]),
+            "$base/firewall/rules*" => Http::response(['data' => [['descr' => 'CFBTEL VPN: DNS to firewall']]]),
+            "$base/firewall/rule*" => Http::response(['data' => []]),
+            "$base/firewall/nat/outbound/mode*" => Http::response(['data' => ['mode' => 'automatic']]),
+            "$base/firewall/nat/outbound/mappings*" => Http::response(['data' => []]),
+            "$base/firewall/nat/outbound/mapping*" => Http::response(['data' => []]),
+            "$base/services/dns_resolver/access_lists*" => Http::response(['data' => []]),
+            "$base/services/dns_resolver/*" => Http::response(['data' => []]),
+            "$base/firewall/apply*" => Http::response(['data' => []]),
+        ]);
+        $r = (new PfSenseWireGuardDriver(new PfSenseApiService($fw)))
+            ->setup(['listen_port' => 51820, 'subnet' => '10.0.80.0/24', 'lan' => 'lan', 'wan' => 'wan']);
+
+        $sent = collect(Http::recorded())->map(fn ($x) => $x[0])->filter(fn ($q) => $q->method() !== 'GET');
+        $to = fn (string $path, string $method = 'POST') => $sent->filter(fn ($q) => $q->method() === $method && parse_url($q->url(), PHP_URL_PATH) === "/api/v2$path")->values();
+
+        $this->assertSame('tun_wg0', $r['ref']);
+        $this->assertSame('SrvPub=', $r['public_key']);
+        $this->assertCount(0, $to('/vpn/wireguard/tunnel'), 'the tunnel from the earlier attempt is reused');
+        $this->assertSame([['address' => '10.0.80.1', 'mask' => 24, 'descr' => 'CFBTEL VPN']], $to('/vpn/wireguard/tunnel', 'PATCH')[0]->data()['addresses']);
+        $this->assertCount(0, $to('/interface'), 'no interface assignment (the REST API cannot assign WireGuard tunnels)');
+        $rules = $to('/firewall/rule');
+        $this->assertCount(5, $rules, 'the rule already there is skipped');
+        $this->assertSame(['WireGuard'], $rules[0]->data()['interface']);
+        $this->assertSame(['wan'], $rules[4]->data()['interface']);
+        $this->assertSame('hybrid', $to('/firewall/nat/outbound/mode', 'PATCH')[0]->data()['mode']);
+        $this->assertSame('10.0.80.0/24', $to('/firewall/nat/outbound/mapping')[0]->data()['source']);
+        $this->assertSame('10.0.80.0', $to('/services/dns_resolver/access_list')[0]->data()['networks'][0]['network']);
+    }
+
     public function test_pfsense_driver_trusts_the_installed_package_list_over_the_settings_endpoint(): void
     {
         $fw = Firewall::create(['name' => 'Beta HQ', 'company_id' => Company::create(['name' => 'Beta'])->id, 'url' => 'https://fw.beta.test', 'os_type' => 'pfsense', 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => 'x2']);

@@ -412,7 +412,8 @@ class CompanyVpnController extends Controller
             WireGuard::parseSubnet($v['subnet']);
             $driver = $this->vpn->driver($site);
             // A port already used by a tunnel on this firewall: nothing is changed; adopt that tunnel or pick another port.
-            $taken = collect($driver->tunnels())->first(fn ($t) => (int) ($t['listen_port'] ?? 0) === (int) $v['port']);
+            // (A "CFBTEL VPN" tunnel left by an earlier attempt that stopped part-way is finished instead.)
+            $taken = collect($driver->tunnels())->first(fn ($t) => (int) ($t['listen_port'] ?? 0) === (int) $v['port'] && ($t['name'] ?? '') !== 'CFBTEL VPN');
             if ($taken) {
                 $what = trim(($taken['ref'] ?? '') . (($taken['name'] ?? '') !== '' && ($taken['name'] ?? '') !== ($taken['ref'] ?? '') ? " ({$taken['name']})" : ''));
                 return redirect()->route('vpn.site', [$company, $site])->withInput()

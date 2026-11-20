@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a WireGuard endpoint could answer before the package was really there, so the install was skipped and setup
   stopped with "requires the pfSense-pkg-WireGuard package"). If pfSense still reports the package missing, it is
   installed and the step is retried once; after installing, AdmixCentral waits up to a minute for it to start.
+- Create WireGuard on pfSense stopped with "Field `if` must be one of [...]": pfSense's REST API can't assign a
+  WireGuard tunnel as an interface. Setup no longer assigns it: the tunnel gets its address itself, the VPN rules go
+  on pfSense's **WireGuard** interface group (Firewall → Rules → WireGuard), outbound NAT gets a rule for the VPN
+  network (Automatic mode is switched to Hybrid, which keeps every automatic rule), and the DNS Resolver gets an
+  access list entry for the VPN network. A tunnel assigned by hand keeps its interface. Clicking Create again after
+  a stop finishes the "CFBTEL VPN" tunnel the earlier attempt left (same port, no devices) and skips what's there.
 
 ### Added — v0.8.3
 - Sign-in for the CFBTEL VPN Windows app: the app opens the staff page (`/vpn/app`), the person signs in and picks
