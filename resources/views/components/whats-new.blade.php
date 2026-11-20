@@ -1,10 +1,14 @@
 {{-- "What's new" window: opens once after each update, and again from the version link in the sidebar. --}}
 @php
     $wnVersion = \App\Support\ReleaseNotes::currentVersion();
-    $wnNotes = \App\Support\ReleaseNotes::for($wnVersion);
     $wnAuto = \App\Support\ReleaseNotes::unseenBy(auth()->user());
+    // After an update: everything since the version this person last closed. Opened by hand: the latest three.
+    $wnVersions = $wnAuto
+        ? \App\Support\ReleaseNotes::since(auth()->user()->whats_new_seen)
+        : collect(\App\Support\ReleaseNotes::all())->keys()
+            ->filter(fn ($v) => version_compare(ltrim($v, 'v'), ltrim($wnVersion, 'v'), '<='))
+            ->take(3)->mapWithKeys(fn ($v) => [$v => \App\Support\ReleaseNotes::for($v)])->all();
 @endphp
-@if ($wnNotes)
 <div x-data="{
         open: @js($wnAuto),
         close() {
@@ -34,16 +38,27 @@
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-                @foreach ($wnNotes as $section)
-                    <section>
-                        <h3 @class(['inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide',
-                            'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' => $section['type'] === 'Added',
-                            'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200' => $section['type'] === 'Changed',
-                            'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' => $section['type'] === 'Fixed',
-                            'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' => !in_array($section['type'], ['Added', 'Changed', 'Fixed'])])>{{ $section['type'] }}</h3>
-                        <div class="release-notes mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300">{!! $section['html'] !!}</div>
-                    </section>
-                @endforeach
+                @forelse ($wnVersions as $version => $sections)
+                    <div>
+                        @if (count($wnVersions) > 1 || $version !== $wnVersion)
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ $version }}</h3>
+                        @endif
+                        <div class="space-y-5">
+                            @foreach ($sections as $section)
+                                <section>
+                                    <h4 @class(['inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide',
+                                        'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' => $section['type'] === 'Added',
+                                        'bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' => $section['type'] === 'Changed',
+                                        'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' => $section['type'] === 'Fixed',
+                                        'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' => !in_array($section['type'], ['Added', 'Changed', 'Fixed'])])>{{ $section['type'] }}</h4>
+                                    <div class="release-notes mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300">{!! $section['html'] !!}</div>
+                                </section>
+                            @endforeach
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-600 dark:text-gray-400">There are no release notes for {{ $wnVersion }} on this server.</p>
+                @endforelse
             </div>
             <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3">
                 <a href="{{ route('whats-new') }}" class="text-sm font-medium text-brand-700 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200">All release notes</a>
@@ -52,4 +67,3 @@
         </div>
     </div>
 </div>
-@endif

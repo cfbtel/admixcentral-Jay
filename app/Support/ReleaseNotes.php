@@ -59,6 +59,33 @@ class ReleaseNotes
         ], self::all()[$version] ?? []);
     }
 
+    /**
+     * Notes the person hasn't seen yet: every version after the last one they closed, up to the installed one
+     * (newest first, at most $max). Someone who never closed the window sees the installed version only.
+     *
+     * @return array<string, array<int, array{type: string, html: string}>>
+     */
+    public static function since(?string $seen, int $max = 6): array
+    {
+        $current = self::currentVersion();
+        $out = [];
+        foreach (array_keys(self::all()) as $version) {
+            $v = ltrim($version, 'v');
+            if (version_compare($v, ltrim($current, 'v'), '>')) {
+                continue;
+            }
+            if ($seen ? version_compare($v, ltrim($seen, 'v'), '<=') : $version !== $current) {
+                continue;
+            }
+            $out[$version] = self::for($version);
+            if (count($out) >= $max) {
+                break;
+            }
+        }
+
+        return $out;
+    }
+
     public static function unseenBy(?\App\Models\User $user): bool
     {
         if (!$user) {

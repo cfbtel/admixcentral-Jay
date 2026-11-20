@@ -287,4 +287,25 @@ class PfCentralBrandAndSignInTest extends TestCase
         $url = \Illuminate\Support\Facades\URL::temporarySignedRoute('login.magic.verify', now()->subMinute(), ['id' => $jay->id], absolute: false);
         $this->get($url)->assertRedirect(route('login'))->assertSessionHasErrors(['magic' => 'This sign-in link has expired (links work for 15 minutes). Ask for a new one below.']);
     }
+
+    public function test_whats_new_shows_every_version_since_the_last_one_seen_and_opens_by_hand(): void
+    {
+        $jay = $this->globalAdmin();
+        $versions = array_keys(ReleaseNotes::all());
+        $this->assertGreaterThanOrEqual(3, count($versions));
+        [$current, $previous, $older] = [ReleaseNotes::currentVersion(), $versions[1], $versions[2]];
+
+        $jay->forceFill(['whats_new_seen' => $older])->save();
+        $this->actingAs($jay)->get('/dashboard')->assertSee('open: true', false)->assertSee($current)->assertSee($previous);
+
+        // After closing it, the window is still there for the "What's new" link, just closed.
+        $jay->forceFill(['whats_new_seen' => $current])->save();
+        $this->actingAs($jay)->get('/dashboard')->assertSee('open: false', false)->assertSee('whats-new-title', false);
+    }
+
+    public function test_changelog_ships_with_releases(): void
+    {
+        $this->assertStringNotContainsString('CHANGELOG.md export-ignore', (string) @file_get_contents(base_path('.gitattributes')),
+            'GitHub release archives must include CHANGELOG.md: the What\'s new window reads it');
+    }
 }

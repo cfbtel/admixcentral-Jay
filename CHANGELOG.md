@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.12.5
+- **What's new** now works: the release notes file wasn't included in the update packages, so the window never
+  appeared and the "What's new" link did nothing. After an update it opens once by itself with the notes of every
+  version since you last closed it; the link at the bottom of the page opens it again any time.
+
 ### Fixed — v0.12.4
 - Right after the automatic Microsoft 365 setup, searching groups said the app "can't read groups yet" for up to an
   hour. Microsoft can take a few minutes to switch on a new app's permissions, and PFCentral kept the first
