@@ -340,6 +340,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
                 // Virtual IPs
                 Route::resource('virtual_ips', App\Http\Controllers\FirewallVirtualIpController::class);
+
+                // pfBlockerNG (pfSense package)
+                Route::prefix('pfblockerng')->name('pfblockerng.')->controller(App\Http\Controllers\FirewallPfBlockerNgController::class)->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::get('/progress', 'progress')->name('progress');
+                    Route::post('/install', 'install')->name('install');
+                    Route::post('/general', 'saveGeneral')->name('general');
+                    Route::post('/ip', 'saveIp')->name('ip');
+                    Route::post('/dnsbl', 'saveDnsbl')->name('dnsbl');
+                    Route::get('/groups/{type}/create', 'groupForm')->whereIn('type', ['ipv4', 'ipv6', 'dnsbl'])->name('groups.create');
+                    Route::post('/groups/{type}', 'groupSave')->whereIn('type', ['ipv4', 'ipv6', 'dnsbl'])->name('groups.store');
+                    Route::get('/groups/{type}/{index}/edit', 'groupForm')->whereIn('type', ['ipv4', 'ipv6', 'dnsbl'])->whereNumber('index')->name('groups.edit');
+                    Route::put('/groups/{type}/{index}', 'groupSave')->whereIn('type', ['ipv4', 'ipv6', 'dnsbl'])->whereNumber('index')->name('groups.update');
+                    Route::delete('/groups/{type}/{index}', 'groupDelete')->whereIn('type', ['ipv4', 'ipv6', 'dnsbl'])->whereNumber('index')->name('groups.destroy');
+                    Route::post('/catalog', 'catalogAdd')->name('catalog');
+                    Route::post('/run', 'run')->name('run');
+                    Route::post('/whitelist', 'whitelist')->name('whitelist');
+                    Route::post('/quick-setup', 'quickSetup')->name('quick-setup');
+                });
             });
 
             // Status

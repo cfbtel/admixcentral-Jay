@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.11.0
+- **Firewall → pfBlockerNG** (pfSense firewalls). Manage the pfBlockerNG package from AdmixCentral with the same
+  sections as pfSense: Overview, General, IP, DNSBL, Feeds, Update, Reports, Logs and Quick setup.
+  - Not installed yet: one click installs `pfSense-pkg-pfBlockerNG-devel`.
+  - Quick setup does what the pfSense wizard does (PRI1 IP list, ADs Basic DNSBL list, default whitelist) and adds
+    the DNSBL virtual IP on Localhost (10.10.10.1 by default) when it is missing.
+  - General, IP and DNSBL settings, with "Apply now" (reload). MaxMind key and IPinfo token are write-only: they are
+    never sent back to the browser.
+  - Feeds: list, add, edit and delete IPv4, IPv6 and DNSBL groups (sources, custom entries, action, frequency,
+    logging), or add ready-made groups from the pfBlockerNG feed catalog.
+  - Update: Force update / cron / reload with the live pfblockerng.log.
+  - Reports: most blocked addresses, domains, devices and feeds, recent IP and DNSBL events with a filter, and a
+    Whitelist button for blocked domains. Logs: every pfBlockerNG log file.
+  - Read-only users can see everything but change nothing. OPNsense firewalls show "not supported".
+  - How it works: pfBlockerNG has no API, so AdmixCentral copies a small helper script to `/root/.admixcentral/` on
+    the firewall through the REST API command prompt (in pieces, because commands are limited to 1024 characters)
+    and runs it with pfSense's PHP. It edits the same config.xml sections as the pfBlockerNG pages, so everything
+    stays visible in pfSense.
+
 ### Changed — v0.10.1
 - When AdmixCentral's mail is set to Mandrill (System Settings → Email Configuration), every VPN email
   (invitations, password links, support tickets from the Windows app) goes through Mandrill from that setting's

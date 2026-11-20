@@ -6,7 +6,7 @@
     $btnActive = 'border-indigo-400 dark:border-indigo-600 text-gray-900 dark:text-gray-100';
     $btnInactive = 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700';
 @endphp
-<nav x-data="{ open: false, systemOpen: false, firewallOpen: false, servicesOpen: false, vpnOpen: false, statusOpen: false, diagnosticsOpen: false, systemActive: {{ request()->routeIs('system.*') || request()->routeIs('firewall.system.*') ? 'true' : 'false' }}, firewallActive: {{ request()->routeIs('firewall.aliases.*') || request()->routeIs('firewall.categories.*') || request()->routeIs('firewall.nat.*') || request()->routeIs('firewall.rules.*') || request()->routeIs('firewall.schedules.*') || request()->routeIs('firewall.limiters.*') || request()->routeIs('firewall.virtual_ips.*') ? 'true' : 'false' }}, servicesActive: {{ request()->routeIs('services.*') ? 'true' : 'false' }}, vpnActive: {{ request()->routeIs('vpn.*') ? 'true' : 'false' }}, statusActive: {{ request()->routeIs('status.*') ? 'true' : 'false' }}, diagnosticsActive: {{ request()->routeIs('diagnostics.*') ? 'true' : 'false' }} }"
+<nav x-data="{ open: false, systemOpen: false, firewallOpen: false, servicesOpen: false, vpnOpen: false, statusOpen: false, diagnosticsOpen: false, systemActive: {{ request()->routeIs('system.*') || request()->routeIs('firewall.system.*') ? 'true' : 'false' }}, firewallActive: {{ request()->routeIs('firewall.aliases.*') || request()->routeIs('firewall.categories.*') || request()->routeIs('firewall.nat.*') || request()->routeIs('firewall.rules.*') || request()->routeIs('firewall.schedules.*') || request()->routeIs('firewall.limiters.*') || request()->routeIs('firewall.virtual_ips.*') || request()->routeIs('firewall.pfblockerng.*') ? 'true' : 'false' }}, servicesActive: {{ request()->routeIs('services.*') ? 'true' : 'false' }}, vpnActive: {{ request()->routeIs('vpn.*') ? 'true' : 'false' }}, statusActive: {{ request()->routeIs('status.*') ? 'true' : 'false' }}, diagnosticsActive: {{ request()->routeIs('diagnostics.*') ? 'true' : 'false' }} }"
     class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
     <!-- Primary Navigation Menu -->
     <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
@@ -161,6 +161,10 @@
                                         class="{{ request()->routeIs('firewall.limiters.*') ? $nia : $ni }} pl-6">Traffic Shaper</a>
                                     <a href="{{ route('firewall.virtual_ips.index', request()->route('firewall')) }}"
                                         class="{{ request()->routeIs('firewall.virtual_ips.*') ? $nia : $ni }} pl-6">Virtual IPs</a>
+                                    @unless($isOpnSense)
+                                    <a href="{{ route('firewall.pfblockerng.index', request()->route('firewall')) }}"
+                                        class="{{ request()->routeIs('firewall.pfblockerng.*') ? $nia : $ni }} pl-6">pfBlockerNG</a>
+                                    @endunless
                                 </div>
                             </div>
                         </div>
@@ -497,7 +501,7 @@
 
             <!-- Firewall -->
             <div
-                x-data="{ expanded: {{ request()->routeIs('firewall.aliases.*') || request()->routeIs('firewall.categories.*') || request()->routeIs('firewall.nat.*') || request()->routeIs('firewall.rules.*') || request()->routeIs('firewall.schedules.*') || request()->routeIs('firewall.limiters.*') || request()->routeIs('firewall.virtual_ips.*') ? 'true' : 'false' }} }">
+                x-data="{ expanded: {{ request()->routeIs('firewall.aliases.*') || request()->routeIs('firewall.categories.*') || request()->routeIs('firewall.nat.*') || request()->routeIs('firewall.rules.*') || request()->routeIs('firewall.schedules.*') || request()->routeIs('firewall.limiters.*') || request()->routeIs('firewall.virtual_ips.*') || request()->routeIs('firewall.pfblockerng.*') ? 'true' : 'false' }} }">
                 <button @click="expanded = !expanded"
                     class="flex items-center justify-between w-full pl-3 pr-4 py-2 border-l-4 border-transparent text-left text-base font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none transition duration-150 ease-in-out">
                     <span>Firewall</span>
@@ -525,6 +529,10 @@
                         :active="request()->routeIs('firewall.limiters.*')">{{ __('Traffic Shaper') }}</x-responsive-nav-link>
                     <x-responsive-nav-link :href="route('firewall.virtual_ips.index', request()->route('firewall'))"
                         :active="request()->routeIs('firewall.virtual_ips.*')">{{ __('Virtual IPs') }}</x-responsive-nav-link>
+                    @unless($isOpnSense)
+                    <x-responsive-nav-link :href="route('firewall.pfblockerng.index', request()->route('firewall'))"
+                        :active="request()->routeIs('firewall.pfblockerng.*')">{{ __('pfBlockerNG') }}</x-responsive-nav-link>
+                    @endunless
                 </div>
             </div>
 
