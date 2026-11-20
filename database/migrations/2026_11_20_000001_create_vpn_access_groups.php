@@ -18,8 +18,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // v0.8.5 stopped part-way on MySQL (an index name over 64 characters) and left empty tables behind;
-        // this migration never finished, so they hold nothing — start clean.
+        // v0.8.5 stopped part-way on MySQL (an index name over 64 characters) after creating the tables, and its
+        // code then ran on them. If groups were saved meanwhile, keep everything and only add the missing index.
+        if (Schema::hasTable('vpn_access_group_links') && DB::table('vpn_access_groups')->exists()) {
+            try {
+                Schema::table('vpn_access_group_links', fn (Blueprint $t) => $t->unique(['vpn_access_group_id', 'provider', 'external_id'], 'vpn_ag_links_unique'));
+            } catch (\Throwable) {
+                // duplicate links: leave the table as it is
+            }
+            DB::table('vpn_sites')->whereNotNull('access_group_id')->update(['access_group_id' => null, 'access_group_name' => null]);
+            return;
+        }
+        // Otherwise the leftover tables are empty: start clean.
         Schema::dropIfExists('vpn_access_group_links');
         Schema::dropIfExists('vpn_access_group_users');
         Schema::dropIfExists('vpn_access_group_sites');
