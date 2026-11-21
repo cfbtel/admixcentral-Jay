@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.14.0
+- **Upgrades** in the menu: an upgrade centre for pfSense firewalls, ready for pfSense 26.10.
+- **Check:** PFCentral reads each firewall's version, whether a newer version is offered, free disk, saved config versions, the way back (ZFS) and the REST API package. It checks every night and on demand, and shows what to fix before upgrading.
+- **Plan in waves:** select firewalls and plan an upgrade. The first one is wave 1, a test; the rest go in wave 2, and you can move firewalls between waves. Each wave is started by hand, and only after the earlier waves finished well.
+- **For each firewall, PFCentral:** checks again, saves an encrypted copy of its configuration (downloadable from the page), starts the upgrade, and watches until the firewall is back on the new version. A firewall that doesn't come back within an hour is flagged.
+- **REST API package:** a pfSense upgrade removes it. With SSH set up for the firewall, PFCentral reinstalls it by itself; otherwise the page shows the one command to run, then "Check again".
+- "System Update" in the firewall list's bulk actions now plans an upgrade here, instead of starting upgrades with no checks.
+
 ### Added — v0.13.0
 - **VPN Access → Live connections**, a new page for CFBTEL admins. It shows who is on the VPN right now: the person, their company, which firewall and device, where they connect from, and their live traffic. The page updates every few seconds without reloading.
 - A traffic graph shows the last five minutes of VPN traffic for everyone together, and each firewall shows how many people are on it and whether it's answering.

@@ -42,3 +42,11 @@ Schedule::command('vpn:sync')
     ->everyFifteenMinutes()
     ->withoutOverlapping(30)
     ->onOneServer();
+
+// Upgrade centre: re-run the pre-checks and "newer version?" check of every pfSense firewall nightly.
+Schedule::call(function () {
+    Firewall::all()->reject(fn (Firewall $fw) => $fw->isOpnSense())->each(fn (Firewall $fw) => \App\Jobs\CheckFirmwareJob::dispatch($fw->id));
+})->dailyAt('03:30')
+  ->name('firmware-checks')
+  ->withoutOverlapping(60)
+  ->onOneServer();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Firewall;
+use App\Http\Controllers\UpgradeCentreController;
 use App\Services\PfSenseApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -41,10 +42,8 @@ class FirewallBulkController extends Controller
                     $results[] = "{$firewall->name}: Reboot command sent.";
                     $successCount++;
                 } elseif ($action === 'update') {
-                    // Run pfSense-upgrade command for system update
-                    $api->post('diagnostics/command_prompt', ['command' => '/usr/sbin/pfSense-upgrade -y']);
-                    $results[] = "{$firewall->name}: System update initiated (pfSense-upgrade -y).";
-                    $successCount++;
+                    // Upgrades go through the upgrade centre (pre-checks, backup, waves, came-back check).
+                    return app(UpgradeCentreController::class)->plan($request);
                 } else {
                     $results[] = "{$firewall->name}: Unknown action.";
                     $failureCount++;
@@ -108,11 +107,9 @@ class FirewallBulkController extends Controller
                 $api = new PfSenseApiService($firewall);
 
                 if ($type === 'update') {
-                    // System Update - Issue pfSense-upgrade command
-                    $api->commandPrompt('pfSense-upgrade -y');
-                    $results[] = "{$firewall->name}: pfSense-upgrade command issued.";
-                    $successCount++;
-                    continue;
+                    // Upgrades go through the upgrade centre (pre-checks, backup, waves, came-back check).
+                    $request->merge(['firewall_ids' => $firewall_ids]);
+                    return app(UpgradeCentreController::class)->plan($request);
 
                 } elseif ($type === 'alias') {
                     // Validate

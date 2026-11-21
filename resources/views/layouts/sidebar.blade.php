@@ -153,6 +153,17 @@
                     class="transition-opacity duration-300">{{ __('Firewalls') }}</span>
             </a>
 
+            <a href="{{ route('upgrades.index') }}"
+                class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('upgrades.*') ? 'active' : '' }}">
+                <svg class="mr-3 h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 16V4m0 0L7 9m5-5 5 5M5 20h14" />
+                </svg>
+                <span :class="collapsed ? 'md:hidden' : 'block'"
+                    class="transition-opacity duration-300">{{ __('Upgrades') }}</span>
+            </a>
+
             @if(Auth::user()->isAdmin() || Auth::user()->isUser())
                 <a href="{{ route('companies.index') }}"
                     class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">

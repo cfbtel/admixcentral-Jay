@@ -151,6 +151,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware(App\Http\Middleware\EnsureTenantScope::class)
         ->name('firewall.vpn-summary');
 
+    // Upgrade centre: pre-checks, config backup, and pfSense upgrades in waves.
+    Route::prefix('upgrades')->name('upgrades.')->middleware(App\Http\Middleware\CheckRole::class . ':admin,user,readonly')->group(function () {
+        $c = App\Http\Controllers\UpgradeCentreController::class;
+        Route::get('/', [$c, 'index'])->name('index');
+        Route::get('/data', [$c, 'data'])->name('data');
+        Route::post('/check', [$c, 'check'])->middleware(['deny.readonly', 'throttle:20,1'])->name('check');
+        Route::post('/plan', [$c, 'plan'])->middleware('deny.readonly')->name('plan');
+        Route::get('/rollouts/{rollout}', [$c, 'show'])->whereNumber('rollout')->name('rollouts.show');
+        Route::get('/rollouts/{rollout}/data', [$c, 'rolloutJson'])->whereNumber('rollout')->name('rollouts.data');
+        Route::post('/rollouts/{rollout}/waves/{wave}/start', [$c, 'startWave'])->whereNumber(['rollout', 'wave'])->middleware('deny.readonly')->name('rollouts.start');
+        Route::post('/rollouts/{rollout}/stop', [$c, 'stop'])->whereNumber('rollout')->middleware('deny.readonly')->name('rollouts.stop');
+        Route::post('/rollouts/{rollout}/items/{item}/wave', [$c, 'setWave'])->whereNumber(['rollout', 'item'])->middleware('deny.readonly')->name('rollouts.wave');
+        Route::post('/rollouts/{rollout}/items/{item}/remove', [$c, 'removeItem'])->whereNumber(['rollout', 'item'])->middleware('deny.readonly')->name('rollouts.remove');
+        Route::post('/rollouts/{rollout}/items/{item}/retry', [$c, 'retry'])->whereNumber(['rollout', 'item'])->middleware('deny.readonly')->name('rollouts.retry');
+        Route::post('/rollouts/{rollout}/items/{item}/skip', [$c, 'skip'])->whereNumber(['rollout', 'item'])->middleware('deny.readonly')->name('rollouts.skip');
+        Route::get('/rollouts/{rollout}/items/{item}/backup', [$c, 'backup'])->whereNumber(['rollout', 'item'])->middleware('deny.readonly')->name('rollouts.backup');
+    });
+
     // Bulk Firewall Actions — restricted to admin/user (not readonly)
     Route::post('/firewalls/bulk/action', [App\Http\Controllers\FirewallBulkController::class, 'handle'])
         ->middleware([App\Http\Middleware\CheckRole::class . ':admin,user', 'deny.readonly'])
