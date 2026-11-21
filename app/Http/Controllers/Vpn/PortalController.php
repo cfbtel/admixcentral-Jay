@@ -48,7 +48,7 @@ class PortalController extends Controller
             return null;
         }
         $user = VpnUser::find($s['id'] ?? 0);
-        if (!$user) {
+        if (!$user || $user->isBlocked()) {
             return null;
         }
         if ($user->isLocal()) {
@@ -237,6 +237,12 @@ class PortalController extends Controller
         return null;
     }
 
+    private function blockedMessage(VpnUser $user)
+    {
+        VpnAuditLog::record($user->company_id, $user->upn, 'sign_in_refused (blocked)');
+        return $this->message('VPN access blocked', 'Your VPN access is blocked. Contact your company\'s IT admin or CFBTEL support.', 403);
+    }
+
     private function message(string $title, string $text, int $status = 200, ?VpnUser $user = null)
     {
         return response()->view('vpn.portal.message', compact('title', 'text', 'user'), $status);
@@ -354,6 +360,9 @@ class PortalController extends Controller
                 403,
             );
         }
+        if ($user->isBlocked()) {
+            return $this->blockedMessage($user);
+        }
         // Devices are labelled with the sign-in name; keep it current.
         $user->update(['upn' => $id['upn'], 'name' => $id['name']]);
         return $this->startSession($request, $user, 'Microsoft');
@@ -370,6 +379,9 @@ class PortalController extends Controller
         $r = $this->accounts->attempt($email, $password);
         if (!$r['user']) {
             return response()->view('vpn.portal.password', ['email' => $email, 'error' => $r['error']], 422);
+        }
+        if ($r['user']->isBlocked()) {
+            return $this->blockedMessage($r['user']);
         }
         return $this->afterPassword($request, $r['user'], 'password');
     }

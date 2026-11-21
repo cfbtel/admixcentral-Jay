@@ -915,6 +915,14 @@ Route::prefix('vpn')->name('vpn.portal.')->group(function () {
 // Console: global admins and each company's admins.
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(App\Http\Middleware\CheckRole::class . ':global_admin')->group(function () {
+        Route::get('/vpn-admin', [App\Http\Controllers\Vpn\VpnLiveController::class, 'index'])->name('vpn.live');
+        Route::get('/vpn-admin/live/devices', [App\Http\Controllers\Vpn\VpnLiveController::class, 'devices'])->name('vpn.live.devices');
+        Route::get('/vpn-admin/live/blocked', [App\Http\Controllers\Vpn\VpnLiveController::class, 'blocked'])->name('vpn.live.blocked');
+        Route::get('/vpn-admin/live/sites/{site}', [App\Http\Controllers\Vpn\VpnLiveController::class, 'site'])->whereNumber('site')->middleware('throttle:600,1')->name('vpn.live.site');
+        Route::get('/vpn-admin/live/devices/{device}', [App\Http\Controllers\Vpn\VpnLiveController::class, 'device'])->whereNumber('device')->name('vpn.live.device');
+        Route::post('/vpn-admin/live/devices/{device}/disconnect', [App\Http\Controllers\Vpn\VpnLiveController::class, 'disconnect'])->whereNumber('device')->middleware('deny.readonly')->name('vpn.live.disconnect');
+        Route::post('/vpn-admin/live/people/{vpnUser}/block', [App\Http\Controllers\Vpn\VpnLiveController::class, 'block'])->whereNumber('vpnUser')->middleware('deny.readonly')->name('vpn.live.block');
+        Route::post('/vpn-admin/live/people/{vpnUser}/unblock', [App\Http\Controllers\Vpn\VpnLiveController::class, 'unblock'])->whereNumber('vpnUser')->middleware('deny.readonly')->name('vpn.live.unblock');
         Route::get('/vpn-admin/settings', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'index'])->name('vpn.settings');
         Route::post('/vpn-admin/settings', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'update'])->name('vpn.settings.update');
         Route::post('/vpn-admin/settings/setup', [App\Http\Controllers\Vpn\VpnSettingsController::class, 'updateSetup'])->name('vpn.settings.setup');

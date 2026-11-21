@@ -99,4 +99,28 @@ final class WireGuard
         $lines[] = 'PersistentKeepalive = 25';
         return implode("\n", $lines) . "\n";
     }
+
+    /**
+     * Parse "public-key|endpoint|latest-handshake|rx|tx" lines (see PfSenseWireGuardDriver::status()).
+     *
+     * @return array<int, array{public_key: string, endpoint: ?string, handshake: int, rx: int, tx: int}>
+     */
+    public static function parseStatusLines(string $output): array
+    {
+        $out = [];
+        foreach (preg_split('/\R/', $output) as $line) {
+            $f = explode('|', trim($line));
+            if (count($f) !== 5 || !self::isKey($f[0]) || !ctype_digit($f[2]) || !ctype_digit($f[3]) || !ctype_digit($f[4])) {
+                continue;
+            }
+            $out[] = [
+                'public_key' => $f[0],
+                'endpoint' => $f[1] !== '' && $f[1] !== '(none)' ? mb_substr($f[1], 0, 64) : null,
+                'handshake' => (int) $f[2],
+                'rx' => (int) $f[3],
+                'tx' => (int) $f[4],
+            ];
+        }
+        return $out;
+    }
 }

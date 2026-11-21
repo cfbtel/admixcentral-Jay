@@ -75,6 +75,21 @@ class FakeWireGuard implements WireGuardDriver
         $this->peers[] = $peer + ['tunnel' => $tunnelRef];
     }
 
+    /** @var array<string, array{handshake: int, rx: int, tx: int, endpoint: ?string}> live WireGuard state by public key */
+    public array $live = [];
+
+    public function status(string $tunnelRef): array
+    {
+        $this->up();
+        $out = [];
+        foreach ($this->peers as $p) {
+            if ($p['tunnel'] === $tunnelRef && isset($this->live[$p['public_key']])) {
+                $out[] = ['public_key' => $p['public_key']] + $this->live[$p['public_key']];
+            }
+        }
+        return $out;
+    }
+
     public function removePeers(string $tunnelRef, array $publicKeys): int
     {
         $this->up();
@@ -1487,5 +1502,96 @@ class VpnModuleTest extends TestCase
         Http::fake(['api.github.com/*' => Http::response([], 500)]);
         \App\Models\User::factory()->create();
         $this->get('/vpn/download/windows')->assertRedirect('https://github.com/cfbtel/cfbtel-vpn-windows/releases');
+    }
+
+    // ---- live VPN page ----
+
+    public function test_live_page_shows_who_is_connected_without_sending_keys(): void
+    {
+        $w = $this->world();
+        $site = $this->onboard($w);
+        $this->grant($w['acmeAdmin'], $w['acme'], 'bob');
+        $this->staffSignIn('bob');
+        $this->addDevice('Laptop')->assertOk();
+        $this->addDevice('Phone')->assertOk();
+        [$laptop, $phone] = VpnDevice::orderBy('id')->get()->all();
+        $this->fw->live[$laptop->public_key] = ['handshake' => time() - 30, 'rx' => 1200, 'tx' => 56000, 'endpoint' => '203.0.113.9:51820'];
+        $this->fw->live[$phone->public_key] = ['handshake' => 0, 'rx' => 0, 'tx' => 0, 'endpoint' => null];
+
+        $this->console($w['acmeAdmin'])->get('/vpn-admin')->assertForbidden();
+        $this->console($w['acmeAdmin'])->get("/vpn-admin/live/sites/{$site->id}")->assertForbidden();
+
+        $page = $this->console($w['global'])->get('/vpn-admin');
+        $page->assertOk()->assertSee('Live connections')->assertSee('Companies &amp; settings', false)->assertSee('bob@acme.com');
+        $this->assertStringNotContainsString($laptop->public_key, $page->getContent());
+
+        $live = $this->console($w['global'])->getJson("/vpn-admin/live/sites/{$site->id}")->assertOk();
+        $live->assertJsonPath('ok', true)
+            ->assertJsonPath("peers.{$laptop->id}.ep", '203.0.113.9')
+            ->assertJsonPath("peers.{$laptop->id}.tx", 56000)
+            ->assertJsonPath("peers.{$phone->id}.hs", 0);
+        $this->assertStringNotContainsString($laptop->public_key, $live->getContent());
+
+        $this->console($w['global'])->getJson("/vpn-admin/live/devices/{$laptop->id}")->assertOk()
+            ->assertJsonPath('person.email', 'bob@acme.com')
+            ->assertJsonPath('company.name', 'Acme')
+            ->assertJsonPath('others.0.name', 'Phone');
+
+        // A firewall that doesn't answer is shown as such and left alone for a minute.
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->fw->down = true;
+        $this->console($w['global'])->getJson("/vpn-admin/live/sites/{$site->id}")->assertOk()->assertJsonPath('ok', false);
+        $this->fw->down = false;
+        $this->console($w['global'])->getJson("/vpn-admin/live/sites/{$site->id}")->assertJsonPath('ok', false);
+    }
+
+    public function test_disconnect_and_block_from_the_live_page(): void
+    {
+        $w = $this->world();
+        $this->onboard($w);
+        $this->grant($w['acmeAdmin'], $w['acme'], 'bob');
+        $this->staffSignIn('bob');
+        $this->addDevice('Laptop')->assertOk();
+        $this->addDevice('Phone')->assertOk();
+        $laptop = VpnDevice::orderBy('id')->first();
+
+        $this->console($w['acmeAdmin'])->postJson("/vpn-admin/live/devices/{$laptop->id}/disconnect")->assertForbidden();
+        $this->console($w['global'])->postJson("/vpn-admin/live/devices/{$laptop->id}/disconnect")->assertOk()->assertJsonPath('ok', true);
+        $this->assertCount(1, $this->fw->peers);
+        $this->assertNull(VpnDevice::find($laptop->id));
+
+        $bob = VpnUser::first();
+        $this->console($w['global'])->postJson("/vpn-admin/live/people/{$bob->id}/block")->assertOk();
+        $this->assertCount(0, $this->fw->peers);
+        $this->assertTrue($bob->fresh()->isBlocked());
+        $this->console($w['global'])->getJson('/vpn-admin/live/blocked')->assertOk()->assertJsonPath('0.email', 'bob@acme.com');
+        $this->console($w['acmeAdmin'])->get("/companies/{$w['acme']->id}/vpn")->assertOk()->assertSee('Blocked');
+
+        // Blocked: the open session ends, and signing in again is refused.
+        $this->addDevice('Again')->assertRedirect();
+        $this->staffSignIn('bob')->assertStatus(403)->assertSee('blocked');
+        $this->assertCount(0, $this->fw->peers);
+
+        $this->console($w['global'])->postJson("/vpn-admin/live/people/{$bob->id}/unblock")->assertOk();
+        $this->staffSignIn('bob')->assertRedirect('https://vpn.test/vpn');
+        $this->addDevice('Laptop')->assertOk();
+        $this->assertCount(1, $this->fw->peers);
+    }
+
+    public function test_pfsense_live_status_reads_wg_without_secrets(): void
+    {
+        $fw = Firewall::create(['name' => 'Acme HQ', 'company_id' => Company::create(['name' => 'Acme'])->id, 'url' => 'https://fw.acme.test', 'os_type' => 'pfsense', 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => 'x1']);
+        $k = WireGuard::keyPair()['public'];
+        Http::fake([
+            'https://fw.acme.test/api/v2/diagnostics/command_prompt' => Http::response(['data' => ['output' => "{$k}|198.51.100.4:61234|1795200000|1234|98765\nnot a line\n"]]),
+        ]);
+        $driver = new PfSenseWireGuardDriver(new PfSenseApiService($fw));
+        $rows = $driver->status('tun_wg0');
+        $this->assertSame([['public_key' => $k, 'endpoint' => '198.51.100.4:61234', 'handshake' => 1795200000, 'rx' => 1234, 'tx' => 98765]], $rows);
+        $cmd = collect(Http::recorded())->map(fn ($r) => $r[0]->data()['command'] ?? '')->first();
+        $this->assertStringContainsString('wg show tun_wg0 dump', $cmd);
+        $this->assertStringContainsString('print $1"|"$3"|"$5"|"$6"|"$7', $cmd); // never the preshared key ($2)
+        $this->assertSame([], $driver->status('tun_wg0; reboot'));
+        $this->assertSame('2001:db8::1', \App\Services\Vpn\VpnLive::endpointIp('[2001:db8::1]:51820'));
     }
 }

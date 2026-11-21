@@ -211,7 +211,7 @@
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                         @forelse($users as $u)
                             <tr>
-                                <td class="{{ $td }}"><div class="font-medium">{{ $u->name }}</div><div class="text-xs text-gray-500">{{ $u->upn }}</div></td>
+                                <td class="{{ $td }}"><div class="font-medium">{{ $u->name }}@if($u->isBlocked()) <span class="ml-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300" title="Blocked by {{ $u->blocked_by }} on the live VPN page">Blocked</span>@endif</div><div class="text-xs text-gray-500">{{ $u->upn }}</div></td>
                                 <td class="{{ $td }}">
                                     @if($u->isLocal())
                                         Email &amp; password

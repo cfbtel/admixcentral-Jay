@@ -62,6 +62,9 @@ class VpnManager
      */
     public function addDevice(VpnUser $user, VpnSite $site, string $name, ?string $publicKey = null): array
     {
+        if ($user->isBlocked()) {
+            throw new VpnException('Your VPN access is blocked. Contact your IT admin.');
+        }
         if ($publicKey !== null && (!WireGuard::isKey($publicKey) || VpnDevice::where('public_key', $publicKey)->exists())) {
             throw new VpnException('This computer\'s key is invalid or already in use. Start the sign-in again from the app.');
         }
@@ -137,6 +140,44 @@ class VpnManager
             VpnDevice::where('vpn_site_id', $site->id)->whereNotNull('revoked_at')->delete();
             return $n;
         });
+    }
+
+    /**
+     * Block a person: every device is removed from the firewalls now, and they can't sign in or add a device
+     * until unblocked. The person stays on the list (a Microsoft 365 group can't add them back).
+     *
+     * @return array{removed: int, pending: int}
+     */
+    public function blockUser(VpnUser $user, string $actor): array
+    {
+        $user->update(['blocked_at' => now(), 'blocked_by' => mb_substr($actor, 0, 255)]);
+        $devices = $user->devices()->with('site.firewall')->get();
+        VpnDevice::whereIn('id', $devices->pluck('id'))->whereNull('revoked_at')->update(['revoked_at' => now()]);
+        $removed = 0;
+        $pending = 0;
+        foreach ($devices->groupBy('vpn_site_id') as $siteDevices) {
+            $site = $siteDevices->first()->site;
+            try {
+                $this->locked($site, function () use ($site, $siteDevices, &$removed) {
+                    if ($site->tunnel) {
+                        $this->driver($site)->removePeers($site->tunnel, $siteDevices->pluck('public_key')->all());
+                    }
+                    VpnDevice::whereIn('id', $siteDevices->pluck('id'))->delete();
+                    $removed += $siteDevices->count();
+                });
+            } catch (\Throwable $e) {
+                $pending += $siteDevices->count();
+                Log::warning('VPN: removing devices of a blocked person failed; the sync will retry', ['site' => $site->id, 'error' => $e->getMessage()]);
+            }
+        }
+        VpnAuditLog::record($user->company_id, $actor, "vpn_access_blocked {$user->upn} ({$removed} device(s) removed" . ($pending ? ", {$pending} pending" : '') . ')');
+        return ['removed' => $removed, 'pending' => $pending];
+    }
+
+    public function unblockUser(VpnUser $user, string $actor): void
+    {
+        $user->update(['blocked_at' => null, 'blocked_by' => null]);
+        VpnAuditLog::record($user->company_id, $actor, "vpn_access_unblocked {$user->upn}");
     }
 
     /**

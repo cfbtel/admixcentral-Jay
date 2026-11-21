@@ -14,13 +14,14 @@ class VpnUser extends Model
 {
     protected $table = 'vpn_users';
     protected $fillable = [
-        'company_id', 'auth_type', 'source', 'ms_oid', 'upn', 'name', 'added_by', 'last_login_at',
+        'company_id', 'auth_type', 'source', 'ms_oid', 'upn', 'name', 'added_by', 'last_login_at', 'blocked_at', 'blocked_by',
         'password', 'invite_token_hash', 'invite_expires_at', 'invited_at', 'password_set_at', 'failed_logins', 'locked_until',
         'mfa_mode', 'mfa_secret', 'mfa_enabled_at', 'mfa_recovery', 'mfa_last_step',
     ];
     protected $hidden = ['password', 'invite_token_hash', 'mfa_secret', 'mfa_recovery'];
     protected $casts = [
         'last_login_at' => 'datetime',
+        'blocked_at' => 'datetime',
         'invite_expires_at' => 'datetime',
         'invited_at' => 'datetime',
         'password_set_at' => 'datetime',
@@ -42,9 +43,18 @@ class VpnUser extends Model
         return $this->auth_type === 'local';
     }
 
-    /** "active", "invited" (no password yet) or "locked". */
+    /** Blocked from the live VPN page: no sign-in, no devices, until unblocked. */
+    public function isBlocked(): bool
+    {
+        return $this->blocked_at !== null;
+    }
+
+    /** "active", "invited" (no password yet), "locked" or "blocked". */
     public function status(): string
     {
+        if ($this->isBlocked()) {
+            return 'blocked';
+        }
         if ($this->isLocal() && $this->locked_until && $this->locked_until->isFuture()) {
             return 'locked';
         }

@@ -34,6 +34,14 @@ interface WireGuardDriver
     /** @param array{name: string, public_key: string, preshared_key: string, address: string, label: string} $peer */
     public function addPeer(string $tunnelRef, array $peer): void;
 
+    /**
+     * Live state of the tunnel's peers, from the running WireGuard (no keys other than public keys).
+     * handshake: unix time of the latest handshake (0 = never); rx/tx: bytes received from / sent to the peer.
+     *
+     * @return array<int, array{public_key: string, endpoint: ?string, handshake: int, rx: int, tx: int}>
+     */
+    public function status(string $tunnelRef): array;
+
     /** Remove portal-managed peers (name starts with cfbvpn-) by public key and apply. Returns how many were removed. */
     public function removePeers(string $tunnelRef, array $publicKeys): int;
 }

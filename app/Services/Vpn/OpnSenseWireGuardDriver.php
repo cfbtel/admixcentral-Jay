@@ -150,6 +150,27 @@ class OpnSenseWireGuardDriver implements WireGuardDriver
         return array_map(fn ($p) => ['public_key' => $p['public_key'], 'name' => $p['name'], 'addresses' => $p['addresses']], $this->rawPeers($tunnelRef));
     }
 
+    public function status(string $tunnelRef): array
+    {
+        // OPNsense 24.1+: the same data as Diagnostics → WireGuard status.
+        $res = $this->api->get('/api/wireguard/service/show');
+        $out = [];
+        foreach ((array) ($res['rows'] ?? []) as $row) {
+            if (!is_array($row) || ($row['type'] ?? '') !== 'peer' || empty($row['public-key'])) {
+                continue;
+            }
+            $ep = (string) ($row['endpoint'] ?? '');
+            $out[] = [
+                'public_key' => (string) $row['public-key'],
+                'endpoint' => $ep !== '' && $ep !== '(none)' ? $ep : null,
+                'handshake' => (int) ($row['latest-handshake'] ?? 0),
+                'rx' => (int) ($row['transfer-rx'] ?? 0),
+                'tx' => (int) ($row['transfer-tx'] ?? 0),
+            ];
+        }
+        return $out;
+    }
+
     public function addPeer(string $tunnelRef, array $peer): void
     {
         $this->check($this->api->post('/api/wireguard/client/addClient', ['client' => [

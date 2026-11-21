@@ -327,6 +327,20 @@ class PfSenseWireGuardDriver implements WireGuardDriver
         return array_map(fn ($p) => ['public_key' => $p['public_key'], 'name' => $p['name'], 'addresses' => $p['addresses']], $this->rawPeers($tunnelRef));
     }
 
+    public function status(string $tunnelRef): array
+    {
+        if (!preg_match('/^[A-Za-z0-9_.-]{1,32}$/', $tunnelRef)) {
+            return [];
+        }
+        // "wg show <if> dump" peer lines: public-key, preshared-key, endpoint, allowed-ips, latest-handshake,
+        // rx, tx, keepalive. awk keeps only what's needed, so no preshared or private key leaves the firewall.
+        $cmd = 'env PATH=/usr/local/bin:/usr/bin:/bin wg show ' . $tunnelRef . ' dump | awk -F"\t" \'NF==8{print $1"|"$3"|"$5"|"$6"|"$7}\'';
+        $res = $this->api->commandPrompt($cmd);
+        $output = $res['data']['output'] ?? '';
+        $output = is_array($output) ? implode("\n", $output) : (string) $output;
+        return WireGuard::parseStatusLines($output);
+    }
+
     public function addPeer(string $tunnelRef, array $peer): void
     {
         $this->api->post('/vpn/wireguard/peer', [

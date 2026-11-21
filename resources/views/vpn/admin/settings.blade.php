@@ -8,11 +8,12 @@
 @endphp
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">VPN (WireGuard + Microsoft 365)</h2>
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">VPN Access</h2>
     </x-slot>
 
     <div class="py-8">
         <div class="max-w-5xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            @include('vpn.admin._tabs')
             @include('vpn.admin._notices')
 
             <div class="{{ $card }}">

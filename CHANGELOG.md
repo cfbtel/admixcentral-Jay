@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.13.0
+- **VPN Access → Live connections**, a new page for CFBTEL admins. It shows who is on the VPN right now: the person, their company, which firewall and device, where they connect from, and their live traffic. The page updates every few seconds without reloading.
+- A traffic graph shows the last five minutes of VPN traffic for everyone together, and each firewall shows how many people are on it and whether it's answering.
+- Search by person, email, company, firewall, device or IP, filter by company or firewall, and switch between Connected, All devices and Not connected. Press / to jump to the search box.
+- Click a person to see their device, live traffic, other devices, sign-in method and recent VPN activity.
+- **Disconnect this device**: removes the device from the firewall at once. To reconnect, the person signs in again.
+- **Block**: disconnects all of a person's devices and stops them signing in until someone unblocks them. Blocked people are listed at the bottom of the page and marked on their company's VPN page.
+
 ### Fixed — v0.12.6
 - The "What's new" window opens only once per update: it counts as seen as soon as it appears, so it no longer
   comes back on every page when you move on without clicking "Got it".
