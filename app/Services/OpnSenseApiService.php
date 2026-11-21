@@ -117,6 +117,29 @@ class OpnSenseApiService
      */
     public function request(string $method, string $endpoint, array $data = [])
     {
+        if ($method === 'GET' && ($ttl = FirewallApiCache::ttlFor($endpoint)) > 0) {
+            $cacheKey = FirewallApiCache::key($this->firewall->id, 'opn', $endpoint, $data);
+            [$hit, $value] = FirewallApiCache::get($cacheKey);
+            if ($hit) {
+                return $value;
+            }
+            $value = $this->sendRequest($method, $endpoint, $data);
+            FirewallApiCache::put($cacheKey, $value, $ttl);
+            return $value;
+        }
+        if ($method !== 'GET') {
+            FirewallApiCache::forget($this->firewall->id);
+            try {
+                return $this->sendRequest($method, $endpoint, $data);
+            } finally {
+                FirewallApiCache::forget($this->firewall->id);
+            }
+        }
+        return $this->sendRequest($method, $endpoint, $data);
+    }
+
+    protected function sendRequest(string $method, string $endpoint, array $data = [])
+    {
         $url = $this->baseUrl . '/' . ltrim($endpoint, '/');
 
         $client = Http::withOptions(FirewallHttpOptions::get($this->firewall->tls_public_key_pin, $this->firewall->url))

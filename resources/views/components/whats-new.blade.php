@@ -9,12 +9,19 @@
             ->filter(fn ($v) => version_compare(ltrim($v, 'v'), ltrim($wnVersion, 'v'), '<='))
             ->take(3)->mapWithKeys(fn ($v) => [$v => \App\Support\ReleaseNotes::for($v)])->all();
     // Shown once: it counts as seen as soon as it opens, even if the person just moves on to another page.
-    if ($wnAuto) {
+    // A page the browser loads ahead (on hover) may never be seen, so it's marked seen when it's shown instead.
+    $wnAhead = str_contains((string) request()->header('Sec-Purpose'), 'prerender');
+    if ($wnAuto && !$wnAhead) {
         auth()->user()->forceFill(['whats_new_seen' => $wnVersion])->saveQuietly();
     }
 @endphp
 <div x-data="{
         open: @js($wnAuto),
+        init() {
+            if (!@js($wnAuto && $wnAhead)) return;
+            const seen = () => fetch(@js(route('whats-new.seen')), { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' } });
+            document.prerendering ? document.addEventListener('prerenderingchange', seen, { once: true }) : seen();
+        },
         close() {
             this.open = false;
             fetch(@js(route('whats-new.seen')), { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' } });

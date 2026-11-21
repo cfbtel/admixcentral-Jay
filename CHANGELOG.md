@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — v0.16.0
+- **Faster moving between pages.** In Chrome and Edge, PFCentral starts loading a page while the pointer rests on its link, so most clicks open at once. Links that download, sign in or out, or restart something are never loaded ahead.
+- Pages now swap without a white flash and the sidebar stays put. A thin bar at the top shows when a page takes more than a moment.
+- **Firewall pages answer faster the second time.** PFCentral keeps each firewall's configuration for 15 seconds, so going back and forth doesn't wait on the firewall again. Live information (status, logs, diagnostics, DHCP leases, traffic) is always read fresh, and any change made through PFCentral, including in the firewall's web interface opened through PFCentral, clears it at once. The kept copy is encrypted. Set `API_CACHE_SECONDS=0` in `.env` to turn it off.
+- A page loaded ahead but never opened no longer marks the "What's new" window as seen.
+
 ### Added — v0.15.0
 - **Security** in the menu (global admins): one page for who can sign in to PFCentral and how your team reaches each firewall. Everything on it is off until you turn it on.
 - **Require two-factor:** when on, everyone who signs in with a password or an emailed link must set up two-factor first; until they do, PFCentral only opens their profile page. Signing in with Microsoft 365 counts as two-factor. The page lists who hasn't set it up yet.

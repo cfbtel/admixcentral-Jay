@@ -71,6 +71,7 @@
             background-color: transparent !important;
         }
     </style>
+    @include('layouts.fast-nav')
     <link rel="manifest" href="{{ route('manifest') }}">
     <script>
         if ('serviceWorker' in navigator) {
@@ -88,6 +89,7 @@
 <body class="font-sans antialiased h-full overflow-hidden bg-gray-100 dark:bg-gray-900 flex flex-col"
     x-data="{ sidebarOpen: false, collapsed: window.innerWidth < 1536 }"
     @resize.window="collapsed = window.innerWidth < 1536">
+    <div id="pfc-nav-bar" aria-hidden="true"></div>
     <!-- Global System Update Listener -->
     @if(auth()->user()?->isGlobalAdmin())
         <div x-data="systemUpdateListener()" x-cloak class="z-50 relative shrink-0">

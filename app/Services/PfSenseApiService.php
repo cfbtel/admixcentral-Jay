@@ -508,6 +508,29 @@ class PfSenseApiService
      */
     protected function request(string $method, string $endpoint, array $data = [])
     {
+        if ($method === 'GET' && ($ttl = FirewallApiCache::ttlFor($endpoint)) > 0) {
+            $cacheKey = FirewallApiCache::key($this->firewall->id, 'pf', $endpoint, $data);
+            [$hit, $value] = FirewallApiCache::get($cacheKey);
+            if ($hit) {
+                return $value;
+            }
+            $value = $this->sendRequest($method, $endpoint, $data);
+            FirewallApiCache::put($cacheKey, $value, $ttl);
+            return $value;
+        }
+        if ($method !== 'GET') {
+            FirewallApiCache::forget($this->firewall->id);
+            try {
+                return $this->sendRequest($method, $endpoint, $data);
+            } finally {
+                FirewallApiCache::forget($this->firewall->id);
+            }
+        }
+        return $this->sendRequest($method, $endpoint, $data);
+    }
+
+    protected function sendRequest(string $method, string $endpoint, array $data = [])
+    {
         // If endpoint starts with /api/, treat it as absolute path from host root
         if (str_starts_with($endpoint, '/api/')) {
             $url = rtrim($this->firewall->url, '/') . '/' . ltrim($endpoint, '/');

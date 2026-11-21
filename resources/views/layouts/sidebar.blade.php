@@ -91,7 +91,7 @@
 </style>
 
 <div :class="[collapsed ? 'md:w-16' : 'md:w-64', sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0']"
-    class="sidebar-container fixed inset-y-0 left-0 z-50 flex flex-col h-full border-r transition-all duration-300 ease-in-out md:relative shadow-xl md:shadow-none w-64">
+    id="pfc-sidebar" class="sidebar-container fixed inset-y-0 left-0 z-50 flex flex-col h-full border-r transition-all duration-300 ease-in-out md:relative shadow-xl md:shadow-none w-64">
 
     <!-- Logo / Toggle -->
     <div class="sidebar-header flex items-center justify-between h-16 shrink-0 px-4">

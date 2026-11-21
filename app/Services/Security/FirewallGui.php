@@ -217,6 +217,8 @@ class FirewallGui
             $actions = $s->actions ?? [];
             $actions[] = ['at' => now()->toIso8601String(), 'method' => $method, 'page' => mb_substr($path, 0, 120)];
             $update['actions'] = array_slice($actions, -self::MAX_ACTIONS);
+            // A change made in the firewall's own pages: PFCentral's pages read it fresh.
+            \App\Services\FirewallApiCache::forget($s->firewall_id);
         }
         $s->forceFill($update)->save();
 
