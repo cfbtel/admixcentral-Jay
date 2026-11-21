@@ -1,30 +1,24 @@
 # Install the external inventory and status API
 
-External API features contributed by **J Behi**. This fork builds on
-[AdmixCentral](https://github.com/a-d-m-x/admixcentral); original project attribution
-and functionality are retained. This guide uses example paths/IDs only.
+PFCentral's external inventory and status API, by **Jay Behi**. This guide uses
+example paths and IDs only.
 
 ## Requirements and backup
 
-Use an already working AdmixCentral installation, its supported PHP runtime,
+Use an already working PFCentral installation, its supported PHP runtime,
 Composer, and the existing database/cache. The lockfile includes Sanctum 4 and
 patched CommonMark/HTTP Foundation dependencies. Run Composer as the application
 owner, never root. Match the PHP version to the lockfile; development dependencies
 and the API CI job use PHP 8.4 or newer.
 
-Obtain the feature source from this fork, not the upstream default branch:
+Get the source:
 
 ```bash
-git clone https://github.com/tr0uble84/admixcentral-Jay.git admixcentral
+git clone https://github.com/tr0uble84/pfcentral.git pfcentral
 ```
 
-The fork's installer defaults to this repository. New `.env.example` files select
-`GITHUB_REPOSITORY=tr0uble84/admixcentral-Jay` for the update channel. Existing
-installations should explicitly select this fork in their private environment if
-using in-app updates; choosing upstream can replace fork-specific features.
-That updater checks GitHub Releases, which are separate from publishing source
-commits to `main`. Until a compatible release is available, update this fork from
-Git through your normal tested deployment process.
+The in-app updater installs GitHub Releases of the repository set in
+`GITHUB_REPOSITORY` (default `tr0uble84/pfcentral`).
 
 Before updating an existing installation:
 
@@ -40,7 +34,7 @@ Before updating an existing installation:
 
 The following example assumes `/var/www/admixcentral` is owned by `www-data`.
 Replace those values for your installation. These are application-owner commands;
-obtain/update the source in this fork before running them.
+get or update the source before running them.
 
 ```bash
 cd /var/www/admixcentral
@@ -52,7 +46,7 @@ sudo -u www-data php artisan migrate --path=database/migrations/2026_10_24_00000
 For an existing installation, use the explicit migration path above so unrelated
 pending migrations are not run. For a completely new installation, follow the
 original application setup/migration instructions first. Do not run
-`artisan install:api` or publish a second Sanctum token migration: this fork already
+`artisan install:api` or publish a second Sanctum token migration: PFCentral already
 includes its routes, configuration, custom token model and migration.
 
 If your deployment caches config/routes, rebuild those caches through your normal
@@ -168,7 +162,7 @@ samples to draw charts. No historical time-series storage or switch/LAN discover
 is provided by these endpoints. Never treat source descriptions as trusted HTML.
 
 See [inventory/token guide](external-api-v1.md),
-[status contract](ADMIXCENTRAL-STATUS-API.md), [OpenAPI](openapi-v1.json),
+[status contract](PFCENTRAL-STATUS-API.md), [OpenAPI](openapi-v1.json),
 [Postman collection](examples/postman_collection.json) and the
 [Python inventory-only example](examples/fetch_inventory.py).
 

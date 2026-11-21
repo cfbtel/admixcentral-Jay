@@ -1,6 +1,6 @@
 # External inventory API v1
 
-Base path: `https://YOUR-ADMIXCENTRAL-HOST/api/v1` on the existing HTTPS web listener.
+Base path: `https://YOUR-PFCENTRAL-HOST/api/v1` on the existing HTTPS web listener.
 Use the HTTPS application listener, not the SSH management port.
 
 Send `Authorization: Bearer YOUR_TOKEN` with every request. No password login endpoint
@@ -120,6 +120,5 @@ your backup location and rollback record private; they are not part of this repo
 ## Firewall telemetry and installation
 
 API 1.2 adds GET `/firewalls/status` and GET `/firewalls/{firewallId}/status`,
-using the same authorization. See [status contract](ADMIXCENTRAL-STATUS-API.md)
-and [installation guide](EXTERNAL-API-INSTALL.md). External API features
-contributed by **J Behi**; original AdmixCentral authorship is retained.
+using the same authorization. See [status contract](PFCENTRAL-STATUS-API.md)
+and [installation guide](EXTERNAL-API-INSTALL.md). External API by **Jay Behi**.

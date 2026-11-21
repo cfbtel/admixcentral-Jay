@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * The staff page (e.g. https://wguard.cfbtel.com/vpn): people a company admin gave VPN access sign in with
- * their own Microsoft 365 account and add or remove their devices. It never shows the AdmixCentral console.
+ * their own Microsoft 365 account and add or remove their devices. It never shows the PFCentral console.
  */
 class PortalController extends Controller
 {

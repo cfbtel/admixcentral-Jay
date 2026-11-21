@@ -1,7 +1,7 @@
 #!/bin/bash
 # /usr/local/bin/admixcentral-request-cert
 # ---------------------------------------------------------------------------
-# Privileged certbot wrapper for AdmixCentral.
+# Privileged certbot wrapper for PFCentral.
 # Grants www-data the ability to request Let's Encrypt certs WITHOUT exposing
 # full certbot access. --deploy-hook injection (a path to root RCE) is simply
 # not possible through this interface — no arbitrary flags are accepted.

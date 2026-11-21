@@ -1,10 +1,8 @@
-# External API contribution by J Behi
+# External API
 
-This fork adds a read-only external integration API to AdmixCentral. The
-inventory, MSP token, non-expiring-token option and background firewall status
-features are contributed by **J Behi**. AdmixCentral's original authors retain
-credit for the underlying application; Laravel Sanctum and other dependencies
-retain their own licenses and authorship.
+PFCentral's read-only external integration API: inventory, MSP tokens, the
+non-expiring-token option and background firewall status, by **Jay Behi**.
+Laravel Sanctum and other dependencies keep their own licenses and authorship.
 
 ## Included features
 

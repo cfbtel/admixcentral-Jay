@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ### CONFIG ###
-REPO_URL="https://github.com/geekasso/admixcentral.git"
+REPO_URL="https://github.com/tr0uble84/pfcentral.git"
 APP_DIR="/var/www/admixcentral"
 APP_USER="www-data"
 # Detect PHP version or hardcode if preferred
@@ -137,7 +137,7 @@ sed -i '/^DB_DATABASE=database\/database\.sqlite$/d' .env
 sed -i '/^DB_CONNECTION=sqlite$/d' .env
 
 # Set app name
-set_env "APP_NAME" "\"AdmixCentral\"" ".env"
+set_env "APP_NAME" "\"PFCentral\"" ".env"
 set_env "APP_URL" "http://\$(curl -s ifconfig.me)" ".env"
 set_env "APP_ENV" "production" ".env"
 set_env "APP_DEBUG" "false" ".env"
@@ -305,7 +305,7 @@ apt-get autoremove -y
 
 echo
 echo "============================================================"
-echo " AdmixCentral One-Click Install Complete."
+echo " PFCentral One-Click Install Complete."
 echo " Directory : $APP_DIR"
 echo " DB        : MySQL ($MYSQL_DB)"
 echo " Reverb    : Running on 8080 (Proxied via Nginx)"

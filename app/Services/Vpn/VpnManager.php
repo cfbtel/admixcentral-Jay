@@ -216,7 +216,7 @@ class VpnManager
     /**
      * Keep the firewalls in line with who may use the VPN:
      *  - people whose Microsoft 365 account was deleted lose access; disabled accounts lose their devices;
-     *  - revoked devices (and any cfbvpn- peer AdmixCentral no longer knows) are removed from the firewall.
+     *  - revoked devices (and any cfbvpn- peer PFCentral no longer knows) are removed from the firewall.
      * Any Microsoft error stops the account check for that company without removing anything.
      *
      * @return array{removed: int, skipped: bool}

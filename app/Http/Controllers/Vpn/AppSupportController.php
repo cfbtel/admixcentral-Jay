@@ -28,7 +28,7 @@ class AppSupportController extends Controller
     {
     }
 
-    /** The office firewall as AdmixCentral sees it, for this device. */
+    /** The office firewall as PFCentral sees it, for this device. */
     public function status(Request $request)
     {
         $key = (string) $request->input('public_key', '');
@@ -147,7 +147,7 @@ class AppSupportController extends Controller
             . "Checks: {$report->problems} problem(s), {$report->warnings} warning(s)\n\n"
             . "Message:\n{$v['message']}\n\n"
             . "The full diagnostic report and VPN log are attached. Reply to this email to answer {$v['contact_email']}.\n"
-            . 'In AdmixCentral: ' . route('vpn.support.show', [$device->site->company_id, $report->id]) . "\n";
+            . 'In PFCentral: ' . route('vpn.support.show', [$device->site->company_id, $report->id]) . "\n";
         try {
             $mailer->send(self::supportAddress(), "[{$report->reference()}] " . $report->subject . ' — ' . ($company?->name ?? 'CFBTEL VPN'), $text,
                 replyTo: $v['contact_email'], attachments: ["{$report->reference()}-diagnostics.txt" => $v['report']]);

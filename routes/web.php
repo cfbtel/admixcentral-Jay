@@ -48,7 +48,7 @@ Route::get('/', function () {
 
 Route::get('/manifest.json', function () {
     $settings = \App\Models\SystemSetting::pluck('value', 'key')->toArray();
-    $appName = $settings['app_name'] ?? config('app.name', 'AdmixCentral');
+    $appName = $settings['app_name'] ?? config('app.name', 'PFCentral');
 
     // Resolve icon path: priority to icon_path, then favicon, then logo, then default
     $rawPath = $settings['icon_path'] ?? ($settings['favicon_path'] ?? ($settings['logo_path'] ?? '/images/logo.png'));
@@ -59,7 +59,7 @@ Route::get('/manifest.json', function () {
     return response()->json([
         "name" => $appName,
         "short_name" => $appName,
-        "description" => "AdmixCentral Dashboard",
+        "description" => "PFCentral Dashboard",
         "id" => "/?source=pwa",
         "start_url" => "/?source=pwa",
         "scope" => "/",
@@ -942,7 +942,7 @@ require __DIR__ . '/auth.php';
 // VPN self-service (WireGuard + Microsoft 365 sign-in)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Staff page, served on the VPN portal host (e.g. wguard.cfbtel.com). No AdmixCentral login.
+// Staff page, served on the VPN portal host (e.g. wguard.cfbtel.com). No PFCentral login.
 Route::prefix('vpn')->name('vpn.portal.')->group(function () {
     Route::get('/', [App\Http\Controllers\Vpn\PortalController::class, 'index'])->name('index');
     Route::get('/help', [App\Http\Controllers\Vpn\PortalController::class, 'help'])->name('help');

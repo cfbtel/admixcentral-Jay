@@ -3,7 +3,7 @@ name: Publish release
 # Publishing a version = change VERSION on main (e.g. v0.8.2) and push.
 # This runs the VPN and mail tests, then creates the tag and the GitHub release
 # with that version's notes from CHANGELOG.md ("### Added — v0.8.2" sections).
-# AdmixCentral's built-in updater picks the new release up from there.
+# PFCentral's built-in updater picks the new release up from there.
 # An existing release is never changed. Actions are pinned to commit SHAs (org policy).
 
 on:

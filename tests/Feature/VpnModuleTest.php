@@ -275,7 +275,7 @@ class VpnModuleTest extends TestCase
         parent::tearDown();
     }
 
-    /** Act in the AdmixCentral console (resets the root URL a staff-page request forced in this process). */
+    /** Act in the PFCentral console (resets the root URL a staff-page request forced in this process). */
     private function console(User $user): static
     {
         \Illuminate\Support\Facades\URL::forceRootUrl(config('app.url'));
@@ -453,7 +453,7 @@ class VpnModuleTest extends TestCase
 
         $this->ms->down = true;
         $this->artisan('vpn:sync')->assertSuccessful();
-        // Microsoft down: nobody loses access; only the peer AdmixCentral never created (cfbvpn-999) is cleaned up.
+        // Microsoft down: nobody loses access; only the peer PFCentral never created (cfbvpn-999) is cleaned up.
         $this->assertCount(3, VpnDevice::whereNull('revoked_at')->get());
         $this->assertEqualsCanonicalizing(['Site-to-site', ...VpnDevice::pluck('id')->map(fn ($i) => "cfbvpn-{$i}")->all()], collect($this->fw->peers)->pluck('name')->all());
         $this->ms->down = false;
@@ -680,7 +680,7 @@ class VpnModuleTest extends TestCase
     {
         $w = $this->world();
         $this->onboard($w);
-        // VPN settings have their own SMTP and From; Mandrill (AdmixCentral's mail) wins over both.
+        // VPN settings have their own SMTP and From; Mandrill (PFCentral's mail) wins over both.
         VpnSettings::set('smtp_host', 'smtp.example.test');
         VpnSettings::set('mail_from_address', 'vpn@other.example');
         config(['mail.default' => 'mandrill', 'mail.mailers.mandrill' => ['transport' => 'array', 'key' => 'md-test'], 'mail.from.address' => 'noreply@cfbtel.com']);

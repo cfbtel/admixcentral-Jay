@@ -22,7 +22,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 
 /**
- * A company's VPN in the AdmixCentral console (Companies → company → VPN).
+ * A company's VPN in the PFCentral console (Companies → company → VPN).
  * Global admins and that company's admins manage it; other company users can look.
  */
 class CompanyVpnController extends Controller
@@ -706,6 +706,6 @@ class CompanyVpnController extends Controller
         $name = $site->firewall->name;
         $site->delete();
         VpnAuditLog::record($company->id, $this->actor($request), "site_removed {$name}" . ($stale->isNotEmpty() ? " ({$stale->count()} switched-off device(s) cleared)" : ''));
-        return redirect()->route('vpn.company', $company)->with($leftover ? 'warning' : 'success', "VPN turned off for {$name} in AdmixCentral. The WireGuard tunnel on the firewall was left as it is." . $leftover);
+        return redirect()->route('vpn.company', $company)->with($leftover ? 'warning' : 'success', "VPN turned off for {$name} in PFCentral. The WireGuard tunnel on the firewall was left as it is." . $leftover);
     }
 }

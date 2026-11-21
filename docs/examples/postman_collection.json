@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "AdmixCentral MSP Inventory and Status API",
+    "name": "PFCentral MSP Inventory and Status API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": "Read-only MSP inventory. Set the token privately in a local Postman environment. Fetch every firewall page through meta.last_page. No credentials or customer inventory are included."
   },

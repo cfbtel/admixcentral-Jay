@@ -1,4 +1,4 @@
-# AdmixCentral security audit — 9 September 2026
+# PFCentral security audit — 9 September 2026
 
 Repository: `/home/baga/Code/admixcentral`  
 Starting revision: `8b85fe57620b640ba7d73973d58006088f9cbfe1`  
@@ -6,7 +6,7 @@ Status: source fixes applied locally; deployment and infrastructure remediation 
 
 The review found an authenticated command-injection path to managed pfSense firewalls, authorization gaps, credential disclosures, browser injection, and missing transport authentication. The confirmed application issues described below have been patched. This is **not a clean bill of health for a deployment**: the privileged installer configuration and unsigned updater remain material risks, with remediation methods below. A source review cannot establish that no exploitable defects exist.
 
-Native pfSense/OPNsense certificates remain supported. AdmixCentral can explicitly trust each firewall's HTTPS public key; a public CA is unnecessary. See the [deployment and certificate guide](/home/baga/Code/admixcentral/docs/SECURITY_DEPLOYMENT.md).
+Native pfSense/OPNsense certificates remain supported. PFCentral can explicitly trust each firewall's HTTPS public key; a public CA is unnecessary. See the [deployment and certificate guide](/home/baga/Code/admixcentral/docs/SECURITY_DEPLOYMENT.md).
 
 ## Scope and evidence
 
@@ -55,7 +55,7 @@ These grant the web runtime broad `certbot`/`nginx` execution and/or the ability
 
 ### R03 — Multi-tenant outbound network access / DNS rebinding (medium–high, topology dependent)
 
-AdmixCentral must reach private firewall addresses. A universal private-address ban would defeat that purpose. Current URL checks occur when a firewall is registered/edited; a later DNS resolution can differ. Tenant administrators can still select reachable HTTPS destinations. The proxy-check endpoint also needs network-level containment despite redirects being disabled.
+PFCentral must reach private firewall addresses. A universal private-address ban would defeat that purpose. Current URL checks occur when a firewall is registered/edited; a later DNS resolution can differ. Tenant administrators can still select reachable HTTPS destinations. The proxy-check endpoint also needs network-level containment despite redirects being disabled.
 
 **Immediate deployment method:** put Central and its workers in a management network with egress limited to approved firewall management IPs and ports, plus separately approved DNS/mail/update services. Block cloud metadata, unrelated loopback services and unrelated tenant networks at the host/container/network boundary. Allow rules must cover both IPv4 and IPv6. Prefer isolated per-tenant workers or tunnels where tenants must not reach each other's management networks.
 

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * "Connect Microsoft 365 automatically", on the VPN page's host so the link also works for a
- * company's own IT admin who has no AdmixCentral login:
+ * company's own IT admin who has no PFCentral login:
  *
  *   GET  /vpn/setup?t=…        what will happen, and a "Continue to Microsoft" button
  *   POST /vpn/setup            → Microsoft sign-in + consent with CFBTEL's setup app

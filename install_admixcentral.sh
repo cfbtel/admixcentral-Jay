@@ -822,7 +822,7 @@ provision_cron() {
   fi
 
   cat > "$cron_file" << EOF
-# AdmixCentral — Laravel task scheduler
+# PFCentral — Laravel task scheduler
 # Drives backend firewall status polling independently of browser activity.
 # Do not remove: without this, pfSense status checks only run when a browser has /firewalls open.
 ${cron_line}
@@ -951,7 +951,7 @@ main() {
   local public_ip=""
   public_ip="$(curl -4 -fsS ifconfig.me 2>/dev/null || true)"
 
-  set_env_kv .env "APP_NAME" '"AdmixCentral"'
+  set_env_kv .env "APP_NAME" '"PFCentral"'
   if [[ -n "$public_ip" ]]; then
     set_env_kv .env "APP_URL" "http://${public_ip}"
   fi
@@ -1016,7 +1016,7 @@ main() {
     COMPOSER_NO_INTERACTION=1 composer install --no-dev --prefer-dist --no-progress
   "
 
-  log "Running AdmixCentral install wizard: php artisan install"
+  log "Running PFCentral install wizard: php artisan install"
   if [[ -n "${DB_PASS:-}" ]] || [[ ! -t 0 ]]; then
     (
       cd "${INSTALL_DIR}"
@@ -1213,7 +1213,7 @@ EOF
   log "INSTALL COMPLETE"
   echo
   echo "============================================================"
-  echo "AdmixCentral installed at: ${INSTALL_DIR}"
+  echo "PFCentral installed at: ${INSTALL_DIR}"
   echo "Browse: http://<server-ip>/"
   echo "Log: ${LOG_FILE}"
   echo "Detected runtime user/group: ${RUNTIME_WEB_USER}:${RUNTIME_WEB_GROUP}"

@@ -15,7 +15,7 @@ class UpdateService
 
     public function __construct()
     {
-        $this->repository = config('services.github.repository', 'a-d-m-x/admixcentral');
+        $this->repository = config('services.github.repository', 'tr0uble84/pfcentral');
     }
 
     /**

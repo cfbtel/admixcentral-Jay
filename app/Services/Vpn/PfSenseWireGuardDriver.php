@@ -5,9 +5,9 @@ namespace App\Services\Vpn;
 use App\Services\PfSenseApiService;
 
 /**
- * WireGuard on pfSense through the pfSense REST API package (pfrest, API v2) that AdmixCentral already uses.
+ * WireGuard on pfSense through the pfSense REST API package (pfrest, API v2) that PFCentral already uses.
  *
- * API user privileges needed (in addition to what AdmixCentral already uses):
+ * API user privileges needed (in addition to what PFCentral already uses):
  *   api-v2-vpn-wireguard-settings-patch, -tunnels-get, -tunnel-post, -peers-get, -peer-post, -peer-delete, -apply-post,
  *   api-v2-interfaces-get, api-v2-interface-post, api-v2-interface-apply-post,
  *   api-v2-firewall-aliases-get, -alias-post, -rule-post, -apply-post,
@@ -90,7 +90,7 @@ class PfSenseWireGuardDriver implements WireGuardDriver
             $this->api->post('/system/package', ['name' => self::PACKAGE]);
         } catch (\Throwable $e) {
             $why = $e->getCode() === 403
-                ? 'the AdmixCentral API user needs the "api-v2-system-package-post" privilege'
+                ? 'the PFCentral API user needs the "api-v2-system-package-post" privilege'
                 : $e->getMessage();
             throw new VpnException("Couldn't install the WireGuard package on this firewall ({$why}). Install it in pfSense under System → Package Manager → Available Packages → WireGuard, then try again.");
         } finally {

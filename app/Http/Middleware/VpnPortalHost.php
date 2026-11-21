@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The staff VPN page has its own public host name (VPN settings → portal host, e.g. wguard.cfbtel.com).
- * On that host only the /vpn pages and their static files are served: the AdmixCentral console,
+ * On that host only the /vpn pages and their static files are served: the PFCentral console,
  * its login and its API answer 404 there. Links and the session cookie are bound to that host.
  */
 class VpnPortalHost

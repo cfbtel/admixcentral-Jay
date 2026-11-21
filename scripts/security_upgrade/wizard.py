@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host preparation for existing AdmixCentral deployments; Python standard library only.
+"""Host preparation for existing PFCentral deployments; Python standard library only.
 
 Never installs application code, builds assets, migrates data or switches queue/session drivers.
 """
@@ -24,7 +24,7 @@ import time
 SAFE_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
 REQUIRED = {'ctype', 'curl', 'dom', 'fileinfo', 'filter', 'hash', 'mbstring', 'openssl',
             'pcre', 'pdo', 'session', 'tokenizer', 'xml', 'redis', 'pcntl', 'posix', 'zip'}
-MARKER = '# Managed by AdmixCentral host-readiness wizard'
+MARKER = '# Managed by PFCentral host-readiness wizard'
 
 
 class ReadinessError(Exception):
@@ -383,7 +383,7 @@ class Wizard:
             return
         result = self.run.run([self.php, '-r', 'echo PHP_MAJOR_VERSION,".",PHP_MINOR_VERSION;'])
         if not re.fullmatch(r'8\.\d+', result.stdout):
-            raise ReadinessError('AdmixCentral requires PHP 8.2+ within PHP 8; select a supported PHP binary.')
+            raise ReadinessError('PFCentral requires PHP 8.2+ within PHP 8; select a supported PHP binary.')
         self.version = result.stdout
         if tuple(map(int, self.version.split('.'))) < (8, 2):
             raise ReadinessError('PHP 8.2+ is required. Upgrade the host/PHP through trusted distro repositories first; no PPA is added automatically.')
@@ -591,7 +591,7 @@ class Wizard:
             if unit and not self.active(unit):
                 self.issue('Service is not active: ' + unit)
         if self.legacy_sudoers():
-            self.issue('Legacy AdmixCentral sudoers grants exist; the wizard can remove that drop-in after explaining the affected web controls.')
+            self.issue('Legacy PFCentral sudoers grants exist; the wizard can remove that drop-in after explaining the affected web controls.')
         if shutil.which('getenforce', path=SAFE_PATH):
             state = self.run.run(['getenforce']).stdout.strip()
             say('SELinux: ' + state + '. Review the SELinux guidance in docs/HOST_READINESS.md; no policy is disabled automatically.')
@@ -885,10 +885,10 @@ class Wizard:
                                     lambda: None, activate, recover=recover)
         path = Path('/etc/sudoers.d/admixcentral')
         if self.legacy_sudoers():
-            say('\nLegacy AdmixCentral sudo rules permit web-triggered root configuration writes and can turn an application compromise into host compromise.')
+            say('\nLegacy PFCentral sudo rules permit web-triggered root configuration writes and can turn an application compromise into host compromise.')
             say('Removing this drop-in disables web SSL installation and host performance-tuning actions that depend on sudo. Manage those as an OS administrator.')
             say('The built-in GitHub code updater stays in place; application ownership and updater code are unchanged.')
-            if confirm('Remove the legacy AdmixCentral sudo grants (replace this drop-in with a comment)?'):
+            if confirm('Remove the legacy PFCentral sudo grants (replace this drop-in with a comment)?'):
                 self.backups.change(path, MARKER + '\n# Legacy web-to-root grants removed; use an OS administrator for host changes.\n',
                                     lambda: self.run.run(['visudo', '-cf', '/etc/sudoers']), mode=0o440, owner=(0, 0))
         say('Private/self-signed pfSense and OPNsense certificates remain supported through per-firewall public-key pins or a trusted CA bundle. TLS verification is never disabled here.')

@@ -1,8 +1,8 @@
 <?php
 /*
- * AdmixCentral pfBlockerNG bridge.
+ * PFCentral pfBlockerNG bridge.
  *
- * AdmixCentral copies this file to the firewall (/root/.admixcentral/) through the
+ * PFCentral copies this file to the firewall (/root/.admixcentral/) through the
  * pfSense REST API command prompt and runs it with the PHP CLI that ships with pfSense:
  *
  *   /usr/local/bin/php pfbng-<hash>.php <action> [<base64 JSON arguments> | @/tmp/acx_<name>]
@@ -422,7 +422,7 @@ function acx_run_task(string $task, string $reload = 'All'): array
 
     // Same steps as the pfBlockerNG Update page.
     install_cron_job('pfblockerng.php cron', false);
-    pfb_logger("\n [ {$label} Task - started from AdmixCentral ]\n", 1);
+    pfb_logger("\n [ {$label} Task - started from PFCentral ]\n", 1);
     mwexec_bg('/usr/local/bin/php /usr/local/www/pfblockerng/pfblockerng.php ' . escapeshellarg($type) . " >> {$pfb['log']} 2>&1");
 
     return ['started' => $label];
@@ -488,7 +488,7 @@ switch ($action) {
         $c['skipfeed'] = acx_pick($args['skipfeed'] ?? '0', $o['skipfeed'], '0');
         unset($c['log_maxlines']);
         config_set_path('installedpackages/pfblockerng/config/0', $c);
-        write_config('[pfBlockerNG] save General settings (AdmixCentral)');
+        write_config('[pfBlockerNG] save General settings (PFCentral)');
 
         // The General page runs the full sync after saving; it can take a while, so run it in the background.
         if (!acx_running()) {
@@ -566,7 +566,7 @@ switch ($action) {
         $c['v4suppression'] = $supp === '' ? '' : base64_encode($supp);
 
         config_set_path('installedpackages/pfblockerngipsettings/config/0', $c);
-        write_config('[pfBlockerNG] save IP settings (AdmixCentral)');
+        write_config('[pfBlockerNG] save IP settings (PFCentral)');
 
         $note = '';
         if ($oldLocale !== $c['maxmind_locale'] && !preg_grep('/pfblockerng[.]php\s+?(uc|gc|ugc)/', (function () { $p = []; exec('/bin/ps -wwx', $p); return $p; })())) {
@@ -639,7 +639,7 @@ switch ($action) {
             $c[$k] = $text === '' ? '' : base64_encode($text);
         }
         config_set_path('installedpackages/pfblockerngdnsblsettings/config/0', $c);
-        write_config('[pfBlockerNG] save DNSBL settings (AdmixCentral)');
+        write_config('[pfBlockerNG] save DNSBL settings (PFCentral)');
 
         $reload = (!empty($args['reload']) || $note) ? acx_run_task('reload', 'DNSBL') : null;
         acx_out(['ok' => true, 'dnsbl' => acx_dnsbl(), 'note' => $note, 'reload' => $reload]);
@@ -656,10 +656,10 @@ switch ($action) {
         $list = acx_b64_text($c['suppression'] ?? '');
         $lines = array_map(function ($l) { return trim(preg_split('/(?=#)/', $l)[0]); }, explode("\n", str_replace("\r", '', $list)));
         if (!in_array($entry, $lines, true)) {
-            $list = rtrim($list, "\r\n") . ($list === '' ? '' : "\r\n") . $entry . ' # added from AdmixCentral';
+            $list = rtrim($list, "\r\n") . ($list === '' ? '' : "\r\n") . $entry . ' # added from PFCentral';
             $c['suppression'] = base64_encode($list);
             config_set_path('installedpackages/pfblockerngdnsblsettings/config/0', $c);
-            write_config("[pfBlockerNG] DNSBL whitelist: added {$entry} (AdmixCentral)");
+            write_config("[pfBlockerNG] DNSBL whitelist: added {$entry} (PFCentral)");
         }
         $reload = !empty($args['reload']) ? acx_run_task('reload', 'DNSBL') : null;
         acx_out(['ok' => true, 'entry' => $entry, 'reload' => $reload]);
@@ -734,7 +734,7 @@ switch ($action) {
             $list[$index] = $g;
         }
         config_set_path("installedpackages/{$section}/config", array_values($list));
-        write_config("[pfBlockerNG] saved {$type} group {$name} (AdmixCentral)");
+        write_config("[pfBlockerNG] saved {$type} group {$name} (PFCentral)");
 
         $run = !empty($args['update']) ? acx_run_task('update') : null;
         acx_out(['ok' => true, 'aliasname' => $name, 'update' => $run]);
@@ -752,7 +752,7 @@ switch ($action) {
         $name = $list[$index]['aliasname'];
         unset($list[$index]);
         config_set_path("installedpackages/{$section}/config", array_values($list));
-        write_config("[pfBlockerNG] removed {$type} group {$name} (AdmixCentral)");
+        write_config("[pfBlockerNG] removed {$type} group {$name} (PFCentral)");
         $run = !empty($args['reload']) ? acx_run_task('reload', $type === 'dnsbl' ? 'DNSBL' : 'IP') : null;
         acx_out(['ok' => true, 'aliasname' => $name, 'reload' => $run]);
         break;
@@ -836,7 +836,7 @@ switch ($action) {
         }
         $list[] = $add;
         config_set_path("installedpackages/{$section}/config", array_values($list));
-        write_config("[pfBlockerNG] added {$type} feed group {$key} (AdmixCentral)");
+        write_config("[pfBlockerNG] added {$type} feed group {$key} (PFCentral)");
         $run = !empty($args['update']) ? acx_run_task('update') : null;
         acx_out(['ok' => true, 'aliasname' => $key, 'update' => $run]);
         break;
@@ -963,7 +963,7 @@ switch ($action) {
                 $vips = config_get_path('virtualip/vip', []);
                 $vips[] = $vip;
                 config_set_path('virtualip/vip', $vips);
-                write_config('[pfBlockerNG] added DNSBL virtual IP on Localhost (AdmixCentral)');
+                write_config('[pfBlockerNG] added DNSBL virtual IP on Localhost (PFCentral)');
                 if (function_exists('interface_ipalias_configure')) {
                     interface_ipalias_configure($vip);
                 }
@@ -1011,7 +1011,7 @@ switch ($action) {
             $new[$section]['config'][] = $add;
         }
         config_set_path('installedpackages', $new);
-        write_config('pfBlockerNG: Default Wizard configuration saved (AdmixCentral)');
+        write_config('pfBlockerNG: Default Wizard configuration saved (PFCentral)');
         pfb_global();
 
         pfb_unbound_dnsbl('disabled');

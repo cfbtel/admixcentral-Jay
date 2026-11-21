@@ -1,4 +1,4 @@
-# AdmixCentral host preparation and readiness
+# PFCentral host preparation and readiness
 
 `upgrade_admixcentral.sh` now prepares the **host environment of an existing installation**. The application’s built-in GitHub release updater continues to handle application code. This wizard does not download releases, run Composer/npm, build assets, run migrations, change application ownership, or move application data.
 

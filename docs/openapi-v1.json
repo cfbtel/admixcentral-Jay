@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "AdmixCentral External Inventory API",
+    "title": "PFCentral External Inventory API",
     "version": "1.2.0",
     "description": "HTTPS-only, bearer-token, read-only inventory. Each token has inventory:read and defaults to a 30-day expiry. Explicit non-expiring tokens may be issued to global administrators using --never-expires; they have inventory:never-expires and expires_at=null, remain revocable, and stop working if the owner loses global-admin status. Company-scoped tokens access one company. Explicit MSP tokens additionally have inventory:read:all, no company_id, and a current global-administrator owner, allowing full inventory across all companies. Default limits: 60 requests/minute/token and 120 requests/minute/IP including invalid tokens. No firewall credentials or management URLs are returned. Browser sessions are not API credentials. HEAD is supported automatically for GET routes. Token issuance and revocation are administrative CLI operations, not HTTP endpoints. API 1.2 adds cached per-firewall and paginated bulk status snapshots. Background collection is independent of API requests. Check collection time and stale flag; missing telemetry is null and unsupported sections are listed explicitly. No firewall configuration changes are exposed."
   },

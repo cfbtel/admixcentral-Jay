@@ -1,18 +1,18 @@
 # VPN Access (WireGuard + Microsoft 365)
 
-Self-service WireGuard remote access for each company managed in AdmixCentral.
+Self-service WireGuard remote access for each company managed in PFCentral.
 
 **Who does what:**
 * **Global admins (CFBTEL):**
   * set up the Microsoft app once;
   * connect each company's Microsoft 365;
-  * turn on VPN for a company firewall. AdmixCentral then builds WireGuard on it through the API connection it
+  * turn on VPN for a company firewall. PFCentral then builds WireGuard on it through the API connection it
     already has.
-* **Company admins** (AdmixCentral users with the *admin* role in that company) choose who gets VPN access, picking
+* **Company admins** (PFCentral users with the *admin* role in that company) choose who gets VPN access, picking
   people from their own Microsoft 365.
 * **Those people** sign in on the **staff VPN page** (e.g. `https://wguard.cfbtel.com/vpn`) with their Microsoft 365
   account. They add a device and get a QR code or `.conf` file for the free WireGuard or AmneziaVPN app. They never
-  see the AdmixCentral console.
+  see the PFCentral console.
 * **Losing access:** removing someone's access removes their devices at once. Every 15 minutes (`vpn:sync`) devices of
   disabled or deleted Microsoft 365 accounts are removed too.
 
@@ -26,7 +26,7 @@ VPN page:
 
 * **Connect Microsoft 365 automatically (recommended):** click the button (or send the link, valid 7 days, single
   use, to the company's IT admin). A **Global Administrator of the company's Microsoft 365** signs in and accepts
-  the permissions. AdmixCentral then, in the company's tenant, through Microsoft Graph (same approach as CIPP's SAM
+  the permissions. PFCentral then, in the company's tenant, through Microsoft Graph (same approach as CIPP's SAM
   wizard):
   * creates the app **CFBTEL VPN** (this organization only, redirect URI `https://<portal host>/vpn/callback`);
   * adds a client secret (2 years) and saves it encrypted, with the app ID and tenant;
@@ -68,7 +68,7 @@ Entra admin center → **App registrations → New registration**:
   - then **Grant admin consent**.
 - **Certificates & secrets → New client secret.** Copy the *Value*.
 
-In AdmixCentral, open **VPN Access** in the sidebar (global admins). Enter:
+In PFCentral, open **VPN Access** in the sidebar (global admins). Enter:
 - the application (client) ID;
 - the secret (stored encrypted with the app key);
 - the portal host name;
@@ -138,7 +138,7 @@ characters), then sign in on the staff page with their email and password.
 - 5 wrong passwords lock the account for 15 minutes.
 - **Email settings** (VPN Access, global admins): SMTP server, port, encryption, user, password (encrypted),
   sender, and the invitation template (`{name}`, `{company}`, `{link}`, `{expires}`, `{portal}`; `{link}` is
-  required). Leave the SMTP server empty to use AdmixCentral's own mail setup. **Send a test email** checks it.
+  required). Leave the SMTP server empty to use PFCentral's own mail setup. **Send a test email** checks it.
 - These people aren't checked against Microsoft by `vpn:sync`; removing them is up to the company admin.
 
 ## 2. Staff page host name
@@ -159,7 +159,7 @@ Point the name at this server, either way:
    - Enter the company's work email domains.
 3. **Firewalls → Enable VPN → Create WireGuard.**
    - Choose the LAN users may reach, the WAN, the UDP port, the VPN network and the public name or IP.
-   - AdmixCentral creates:
+   - PFCentral creates:
      - the tunnel;
      - rules on the VPN interface: DNS to the firewall, block the firewall's admin pages, allow the chosen LAN, block
        other private networks, internet (full tunnel);
@@ -172,7 +172,7 @@ Point the name at this server, either way:
 
 ## 4. Firewall API permissions
 
-* **pfSense:** the API user AdmixCentral uses needs these privileges:
+* **pfSense:** the API user PFCentral uses needs these privileges:
   - `api-v2-vpn-wireguard-settings-patch`, `-tunnels-get`, `-tunnel-post`, `-peers-get`, `-peer-post`, `-peer-delete`,
     `-apply-post`
   - `api-v2-interfaces-get`, `api-v2-interface-post`, `api-v2-interface-apply-post`
@@ -200,7 +200,7 @@ Point the name at this server, either way:
 
 **Security notes:**
 * **Keys:**
-  - Client keys are generated in AdmixCentral (libsodium).
+  - Client keys are generated in PFCentral (libsodium).
   - The private key and preshared key go to the person's browser once, as a QR code and a `data:` download. They are
     never stored or logged.
 * **Sign-in tokens:**
@@ -209,7 +209,7 @@ Point the name at this server, either way:
   - The tenant must be linked to a company, and the person must be on that company's list.
 * **What the portal touches:**
   - Firewall peers created here are named `cfbvpn-<device id>`.
-  - Only such peers are ever removed. The sync also removes `cfbvpn-` peers AdmixCentral no longer knows about.
+  - Only such peers are ever removed. The sync also removes `cfbvpn-` peers PFCentral no longer knows about.
 
 ## Releasing an update
 
@@ -217,7 +217,7 @@ Point the name at this server, either way:
 2. Set `VERSION` to that version and push to `main`.
 
 The **Publish release** GitHub Action (`.github/workflows/publish-release.yml`) runs the VPN and mail tests, then
-creates the tag and the release with those notes. AdmixCentral's updater (Settings → System Updates) offers it from
+creates the tag and the release with those notes. PFCentral's updater (Settings → System Updates) offers it from
 there. If the tests fail, nothing is published. An existing release is never changed.
 
 

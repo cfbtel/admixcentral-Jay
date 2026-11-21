@@ -1,6 +1,6 @@
-# AdmixCentral status API v1.2
+# PFCentral status API v1.2
 
-These read-only endpoints expose the dashboard telemetry shown in AdmixCentral:
+These read-only endpoints expose the dashboard telemetry shown in PFCentral:
 system/version/BIOS/CPU information, usage, interfaces and traffic, gateways, rule
 and service counts, and available runtime VPN states. Existing inventory routes
 and tokens remain compatible. No firewall management or configuration writes are exposed.
@@ -36,11 +36,11 @@ Examples, with the token already supplied through protected environment configur
 
 ```bash
 curl --fail-with-body --silent --show-error \
-  -H "Authorization: Bearer ${ADMIXCENTRAL_API_TOKEN}" \
+  -H "Authorization: Bearer ${PFCENTRAL_API_TOKEN}" \
   'https://admixcentral.example.com/api/v1/firewalls/28/status'
 
 curl --fail-with-body --silent --show-error \
-  -H "Authorization: Bearer ${ADMIXCENTRAL_API_TOKEN}" \
+  -H "Authorization: Bearer ${PFCENTRAL_API_TOKEN}" \
   'https://admixcentral.example.com/api/v1/firewalls/status?per_page=100&page=1'
 ```
 
@@ -195,10 +195,10 @@ can reuse a valid inventory token; status adds no separate database migration.
 Render null online as Unknown, not Offline; show the timestamp/stale flag and avoid
 claiming an empty unsupported VPN list means no configured tunnels. Inventory sync
 should remain independent if status sync fails. These endpoints cannot modify a
-firewall; configuration remains in AdmixCentral or the firewall's own management UI.
+firewall; configuration remains in PFCentral or the firewall's own management UI.
 
 ## Installation and attribution
 
 See [External API installation](EXTERNAL-API-INSTALL.md) for dependencies, migration,
 background workers, scheduling and validation. External inventory, MSP token and
-status API features contributed by **J Behi** in this fork.
+status API features by **Jay Behi**.

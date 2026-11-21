@@ -30,7 +30,7 @@ class InventoryClient:
             raise ValueError('API base URL must be an HTTPS URL without credentials, query or fragment.')
         self.token = token.strip()
         if not self.token or '\r' in self.token or '\n' in self.token:
-            raise ValueError('Set ADMIXCENTRAL_API_TOKEN to a valid bearer token.')
+            raise ValueError('Set PFCENTRAL_API_TOKEN to a valid bearer token.')
         self.opener = opener or build_opener(HTTPSHandler(context=ssl.create_default_context()), NoRedirect())
         self.sleep = sleeper
 
@@ -83,7 +83,7 @@ class InventoryClient:
             page += 1
         if len(firewalls) != expected_total:
             raise RuntimeError('Incomplete inventory retrieval; snapshot was not updated.')
-        return {'source': 'AdmixCentral', 'source_instance': self.base_url,
+        return {'source': 'PFCentral', 'source_instance': self.base_url,
                 'inventory_scope': 'registered_firewalls_only',
                 'retrieved_at': datetime.now(timezone.utc).isoformat(),
                 'counts': {'companies': len(companies), 'firewalls': len(firewalls)},
@@ -111,7 +111,7 @@ def main():
     parser.add_argument('--output', default='inventory.json', help='Snapshot file to replace only after a complete sync')
     args = parser.parse_args()
     try:
-        client = InventoryClient(os.environ.get('ADMIXCENTRAL_API_TOKEN', ''), os.environ.get('ADMIXCENTRAL_BASE_URL', DEFAULT_BASE_URL))
+        client = InventoryClient(os.environ.get('PFCENTRAL_API_TOKEN', ''), os.environ.get('PFCENTRAL_BASE_URL', DEFAULT_BASE_URL))
         snapshot = client.fetch_all()
         save_snapshot(snapshot, args.output)
         print(f"Saved {snapshot['counts']['companies']} companies and {snapshot['counts']['firewalls']} firewalls to {args.output}")

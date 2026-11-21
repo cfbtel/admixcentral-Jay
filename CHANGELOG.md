@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — v0.18.1
+- The PFCentral name is used throughout the pages, emails, messages, documentation and installer text.
+- New README, NOTICE, contribution guide (CONTRIBUTING.md), security policy (SECURITY.md) and pull request and issue
+  templates, for the public repository at github.com/tr0uble84/pfcentral.
+- The default update channel for new installations is tr0uble84/pfcentral. Existing installations keep the
+  repository set in `GITHUB_REPOSITORY`.
+
 ### Added — v0.18.0
 - **Deployments cover much more:** firewall rules and floating rules, aliases, schedules, port forwards, outbound NAT rules, 1:1 NAT, DNS Resolver host and domain overrides, static routes, pfBlockerNG IPv4 and IPv6 lists and DNSBL groups, system tunables, and the DNS servers, time (NTP) servers, remote logging (syslog) and time zone of each firewall.
 - **Remove from many firewalls:** every change can also remove that item (an old rule, alias, port forward and so on). Firewalls that don't have it show "Already set"; undo puts it back where it was.
@@ -101,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the 3D logo that spins on the sign-in page.
 
 ### Added — v0.12.0
-- **New look: PFCentral.** AdmixCentral is now **PFCentral**, with a new logo (a shield with a central hub), CFBTEL
+- **New look: PFCentral**, with a new logo (a shield with a central hub), CFBTEL
   navy and cyan colours, the Inter typeface, and "© CFBTEL. All rights reserved." at the bottom of every page.
   If you had kept the old default grey sidebar, it is now navy; colours you picked yourself are kept.
 - **New sign-in page** with a live 3D scene: the PFCentral shield spins inside a firewall ring while traffic flows in;
@@ -114,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bottom of the page or in the menu.
 
 ### Added — v0.11.0
-- **Firewall → pfBlockerNG** (pfSense firewalls). Manage the pfBlockerNG package from AdmixCentral with the same
+- **Firewall → pfBlockerNG** (pfSense firewalls). Manage the pfBlockerNG package from PFCentral with the same
   sections as pfSense: Overview, General, IP, DNSBL, Feeds, Update, Reports, Logs and Quick setup.
   - Not installed yet: one click installs `pfSense-pkg-pfBlockerNG-devel`.
   - Quick setup does what the pfSense wizard does (PRI1 IP list, ADs Basic DNSBL list, default whitelist) and adds
@@ -127,13 +134,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reports: most blocked addresses, domains, devices and feeds, recent IP and DNSBL events with a filter, and a
     Whitelist button for blocked domains. Logs: every pfBlockerNG log file.
   - Read-only users can see everything but change nothing. OPNsense firewalls show "not supported".
-  - How it works: pfBlockerNG has no API, so AdmixCentral copies a small helper script to `/root/.admixcentral/` on
+  - How it works: pfBlockerNG has no API, so PFCentral copies a small helper script to `/root/.admixcentral/` on
     the firewall through the REST API command prompt (in pieces, because commands are limited to 1024 characters)
     and runs it with pfSense's PHP. It edits the same config.xml sections as the pfBlockerNG pages, so everything
     stays visible in pfSense.
 
 ### Changed — v0.10.1
-- When AdmixCentral's mail is set to Mandrill (System Settings → Email Configuration), every VPN email
+- When PFCentral's mail is set to Mandrill (System Settings → Email Configuration), every VPN email
   (invitations, password links, support tickets from the Windows app) goes through Mandrill from that setting's
   From address, ignoring the VPN SMTP settings. VPN settings → Email says so.
 - Support tickets from the app get a random 5-digit reference (VPN-48213) in the email subject.
@@ -153,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — v0.9.0
 - For the CFBTEL VPN Windows app's new Diagnostics tab:
-  - `POST /vpn/app/status`: the office firewall as AdmixCentral sees it for that device (firewall reachable,
+  - `POST /vpn/app/status`: the office firewall as PFCentral sees it for that device (firewall reachable,
     tunnel and listening port, this device's peer present, or "device removed"). The app identifies itself with the
     device's WireGuard public key; one firewall look per office per minute.
   - `POST /vpn/app/support`: support tickets with the person's message, the checks, device ID and the VPN log.
@@ -205,7 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Create WireGuard on pfSense: the WireGuard package check now reads the firewall's installed-package list
   (a WireGuard endpoint could answer before the package was really there, so the install was skipped and setup
   stopped with "requires the pfSense-pkg-WireGuard package"). If pfSense still reports the package missing, it is
-  installed and the step is retried once; after installing, AdmixCentral waits up to a minute for it to start.
+  installed and the step is retried once; after installing, PFCentral waits up to a minute for it to start.
 - Create WireGuard on pfSense stopped with "Field `if` must be one of [...]": pfSense's REST API can't assign a
   WireGuard tunnel as an interface. Setup no longer assigns it: the tunnel gets its address itself, the VPN rules go
   on pfSense's **WireGuard** interface group (Firewall → Rules → WireGuard), outbound NAT gets a rule for the VPN
@@ -245,7 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — v0.8.0
 - One-click Microsoft 365 setup: **Connect Microsoft 365 automatically** on a company's VPN page (or a 7-day,
-  single-use link for its IT admin). A Global Administrator signs in once; AdmixCentral creates the company's own
+  single-use link for its IT admin). A Global Administrator signs in once; PFCentral creates the company's own
   "CFBTEL VPN" app in its tenant with admin consent (User.Read.All; openid profile email User.Read), a 2-year
   secret, its tenant name and email domains, then removes CFBTEL's setup access. Running it again renews the secret.
   Needs a "CFBTEL VPN Setup" app (delegated permissions only) in VPN settings. The secret's expiry shows on the page.
@@ -275,7 +282,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `vpn:sync` every 15 minutes removes devices of people who lost access or whose account was disabled or deleted.
 - See docs/VPN-MODULE.md.
 
-### Added — J Behi's external API contribution
+### Added — External API (Jay Behi)
 - Company-scoped and explicitly authorized all-company MSP inventory REST API
   with Sanctum authentication, HTTPS enforcement, rate limits and safe field lists.
 - Private CLI token issuance/revocation, including explicitly authorized
@@ -374,7 +381,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - Initial Release
 
 ### Added
-- Initial AdmixCentral application for pfSense firewall management
+- Initial PFCentral application for pfSense firewall management
 - Dashboard with firewall status monitoring
 - Real-time status updates via WebSocket (Reverb)
 - Queue-based background job processing
@@ -383,9 +390,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom logo and favicon support
 - Dark/light theme support
 
-[Unreleased]: https://github.com/geekasso/admixcentral/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/geekasso/admixcentral/compare/v0.3.1...v0.4.0
-[0.3.1]: https://github.com/geekasso/admixcentral/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/geekasso/admixcentral/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/geekasso/admixcentral/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/geekasso/admixcentral/releases/tag/v0.1.0

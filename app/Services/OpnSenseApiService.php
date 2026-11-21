@@ -187,7 +187,7 @@ class OpnSenseApiService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // System Status & Health (Unified with AdmixCentral data structure)
+    // System Status & Health (Unified with PFCentral data structure)
     // ─────────────────────────────────────────────────────────────────────────
 
     public function getSystemStatus()

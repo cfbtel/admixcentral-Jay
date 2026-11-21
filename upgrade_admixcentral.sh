@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AdmixCentral environment preparation and host-readiness wizard.
+# PFCentral environment preparation and host-readiness wizard.
 # Application releases continue to be managed by the built-in GitHub updater.
 set -Eeuo pipefail
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin

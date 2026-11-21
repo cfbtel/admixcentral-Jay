@@ -33,7 +33,7 @@ class WindowsAppController extends Controller
         }
         try {
             $response = Http::timeout(8)->acceptJson()
-                ->withHeaders(['User-Agent' => 'AdmixCentral'])
+                ->withHeaders(['User-Agent' => 'PFCentral'])
                 ->get("https://api.github.com/repos/{$repo}/releases", ['per_page' => 10]);
         } catch (\Throwable) {
             return [];

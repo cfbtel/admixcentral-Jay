@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
  *
  * A Global Administrator of the company's Microsoft 365 signs in through CFBTEL's "setup" app
  * (one multi-tenant app registration in CFBTEL's Entra, delegated permissions only). With that
- * short-lived delegated token, AdmixCentral creates the company's own "CFBTEL VPN" app in the
+ * short-lived delegated token, PFCentral creates the company's own "CFBTEL VPN" app in the
  * company's tenant, the same way CIPP's SAM wizard does:
  *
  *   POST /applications                                   the app (single tenant, VPN-page redirect URI, permissions)

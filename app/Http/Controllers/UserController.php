@@ -253,7 +253,7 @@ class UserController extends Controller
 
         try {
             $response = Http::withHeaders([
-                'User-Agent' => 'AdmixCentral-Dashboard/1.0'
+                'User-Agent' => 'PFCentral-Dashboard/1.0'
             ])->get('https://nominatim.openstreetmap.org/search', [
                         'format' => 'json',
                         'q' => $address,

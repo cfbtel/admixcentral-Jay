@@ -13,7 +13,7 @@ use phpseclib3\Crypt\RSA;
  *
  * - Staff sign-in: OpenID Connect authorization code flow with PKCE and nonce on /organizations;
  *   the ID token is verified against Microsoft's signing keys, and its issuer must match its own tenant.
- * - Each company approves the app once (admin consent), which lets AdmixCentral read that tenant's
+ * - Each company approves the app once (admin consent), which lets PFCentral read that tenant's
  *   users (User.Read.All, application) so company admins can pick people and disabled accounts lose access.
  */
 class Microsoft

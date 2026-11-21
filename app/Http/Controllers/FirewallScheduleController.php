@@ -64,7 +64,7 @@ class FirewallScheduleController extends Controller implements HasMiddleware
                 'month' => array_map('trim', explode(',', $request->input('month', 'all'))),
                 'day' => array_map('trim', explode(',', $request->input('day', 'all'))),
                 'hour' => array_map('trim', explode(',', $request->input('hour', '0:00-23:59'))),
-                'rangedescr' => 'Created via AdmixCentral',
+                'rangedescr' => 'Created via PFCentral',
             ];
         } else {
             // Default time range if none provided, to satisfy API requirement

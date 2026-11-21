@@ -1,9 +1,27 @@
-# AdmixCentral
+# PFCentral
 
-## J Behi's external API features
+**PFCentral** is a central console for managing many **pfSense®** and **OPNsense®** firewalls, built for MSPs.
+It is developed by **Jay Behi** ([CFBTEL](https://www.cfbtel.com)). See [NOTICE](NOTICE).
 
-This fork of [a-d-m-x/admixcentral](https://github.com/a-d-m-x/admixcentral) adds
-external integration features contributed by **J Behi**:
+Highlights:
+
+- **Deployments**: the same firewall rules, floating rules, aliases, schedules, port forwards, outbound and 1:1 NAT,
+  DNS overrides, static routes, pfBlockerNG lists and system settings on many pfSense firewalls at once. Every
+  firewall is pre-checked, changes go out in waves (now or scheduled), are saved in one configuration change per
+  firewall, are undone automatically if the firewall can't load them, and can be undone later. Copy settings from a
+  firewall, and remove items from many firewalls. Only the Microsoft 365 people and groups you pick can deploy.
+- **Upgrade centre**: pre-checks, config backups and waves for pfSense upgrades.
+- **VPN Access**: multi-company WireGuard VPN with Microsoft 365 (Entra ID) sign-in, a live connections page, and the
+  CFBTEL VPN Windows client.
+- **Security**: two-factor requirement, the firewall web interface opened through PFCentral with temporary
+  per-technician accounts and logged changes, and an optional per-firewall web interface lock.
+- **External REST API** (`/api/v1`) with tokens, company isolation, inventory and status (see below).
+- Microsoft 365 sign-in for MSP staff, faster navigation, and a short encrypted cache of firewall reads.
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately: see
+[SECURITY.md](SECURITY.md).
+
+## External API
 
 - Sanctum bearer-token REST API under `/api/v1`, with company isolation and
   explicit MSP access across all companies.
@@ -18,15 +36,12 @@ external integration features contributed by **J Behi**:
 
 **Start here:** [Installation](docs/EXTERNAL-API-INSTALL.md) ·
 [Inventory/token guide](docs/external-api-v1.md) ·
-[Status fields and examples](docs/ADMIXCENTRAL-STATUS-API.md) ·
+[Status fields and examples](docs/PFCENTRAL-STATUS-API.md) ·
 [OpenAPI](docs/openapi-v1.json) · [Contributor notes](docs/J-BEHI-API-FEATURES.md).
 
-The API reports registered pfSense/OPNsense firewalls. Unsupported readings remain
-null; this does not add general switch/LAN discovery. The original AdmixCentral
-project and its existing author attribution are retained below.
+## Overview
 
-
-AdmixCentral is a centralized firewall management dashboard engineered for managing multiple **pfSense®** and **OPNsense®** instances from a single pane of glass. It provides a unified, mobile-first interface for system administrators and MSPs to manage firewalls, companies, and users across hybrid firewall deployments.
+PFCentral is a centralized firewall management dashboard engineered for managing multiple **pfSense®** and **OPNsense®** instances from a single pane of glass. It provides a unified, mobile-first interface for system administrators and MSPs to manage firewalls, companies, and users across hybrid firewall deployments.
 
 ## Features
 
@@ -39,7 +54,7 @@ AdmixCentral is a centralized firewall management dashboard engineered for manag
 - **Two-Factor Authentication (2FA)**: TOTP-based 2FA (Google Authenticator, Authy) with recovery codes and password confirmation for sensitive actions.
 - **Secure Architecture**: Isolated multi-tenancy scopes, secure session management, and CSRF protection.
 - **Role-Based Access**: Granular control over company and user permissions (Superadmin, Company Admin, Read-Only).
-- **TLS Certificate Enforcement**: All firewall API connections require HTTPS. Public CA-signed certificates (including ACME/Let's Encrypt) work without any extra steps. Native and self-signed certificates are supported via public-key pinning — AdmixCentral stores the enrolled key and rejects connections if it changes, eliminating the need to disable TLS verification.
+- **TLS Certificate Enforcement**: All firewall API connections require HTTPS. Public CA-signed certificates (including ACME/Let's Encrypt) work without any extra steps. Native and self-signed certificates are supported via public-key pinning — PFCentral stores the enrolled key and rejects connections if it changes, eliminating the need to disable TLS verification.
 
 ### 📱 Mobile-First Experience
 - **Progressive Web App (PWA)**: Installable on iOS/Android for a native app-like experience.
@@ -158,7 +173,7 @@ This release marks a major architectural shift from the initial prototype. The f
 
 ## Installation
 
-AdmixCentral can be installed automatically using the included installation script or manually for administrators who prefer to configure each component themselves.
+PFCentral can be installed automatically using the included installation script or manually for administrators who prefer to configure each component themselves.
 
 ### Supported Operating Systems
 
@@ -188,10 +203,10 @@ The included installer automates the entire deployment process, including:
 - Scheduled task configuration
 - Permission and ownership configuration
 
-### Install AdmixCentral
+### Install PFCentral
 
 ```bash
-wget https://raw.githubusercontent.com/a-d-m-x/admixcentral/main/install_admixcentral.sh
+wget https://raw.githubusercontent.com/tr0uble84/pfcentral/main/install_admixcentral.sh
 chmod +x install_admixcentral.sh
 sudo ./install_admixcentral.sh
 ```
@@ -209,7 +224,7 @@ After installation completes, browse to:
 http://your-server-ip
 ```
 
-to access AdmixCentral.
+to access PFCentral.
 
 ---
 
@@ -269,7 +284,7 @@ cp .env.example .env
 Edit `.env` and configure the application:
 
 ```env
-APP_NAME="AdmixCentral"
+APP_NAME="PFCentral"
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=http://your-server-ip
@@ -405,7 +420,7 @@ Adjust the web server user as required for your distribution.
 
 ### 13. Install SSL Privilege Wrappers
 
-AdmixCentral's built-in Let's Encrypt SSL manager requires the ability to run `certbot` and reload Nginx from the web server process. Rather than granting broad `sudo` access to those tools (which would allow arbitrary code execution via certbot's `--deploy-hook` flag), AdmixCentral installs narrow wrapper scripts that accept only the exact arguments needed and validate all inputs.
+PFCentral's built-in Let's Encrypt SSL manager requires the ability to run `certbot` and reload Nginx from the web server process. Rather than granting broad `sudo` access to those tools (which would allow arbitrary code execution via certbot's `--deploy-hook` flag), PFCentral installs narrow wrapper scripts that accept only the exact arguments needed and validate all inputs.
 
 ```bash
 sudo bash /var/www/admixcentral/scripts/setup-ssl-permissions.sh
@@ -414,7 +429,7 @@ sudo bash /var/www/admixcentral/scripts/setup-ssl-permissions.sh
 This installs five wrapper scripts into `/usr/local/bin/` and creates a sudoers entry granting `www-data` access **only** to those wrappers — not to `certbot` or `nginx` directly. This step is required before the **Install Certificate** button in Settings → Site Configuration will work.
 
 > [!NOTE]
-> This step is only required if you use AdmixCentral's built-in SSL management. If you manage SSL certificates externally, you can skip it.
+> This step is only required if you use PFCentral's built-in SSL management. If you manage SSL certificates externally, you can skip it.
 
 ---
 
@@ -458,7 +473,7 @@ For an existing deployment, run `sudo bash upgrade_admixcentral.sh --check` to a
 
 The wizard supports Ubuntu, Fedora and Arch families with systemd, explains each host change, and backs up edited configuration. It preserves the built-in GitHub application updater. See the [host-readiness guide](docs/HOST_READINESS.md) for distribution details, maintenance precautions and recovery.
 
-## Updating AdmixCentral
+## Updating PFCentral
 
 To update an existing installation:
 
@@ -491,21 +506,21 @@ systemctl reload nginx
 
 ## Adding Your First Firewall
 
-AdmixCentral supports both pfSense and OPNsense firewalls with platform-native workflows.
+PFCentral supports both pfSense and OPNsense firewalls with platform-native workflows.
 
 ### Adding a pfSense Firewall
 
 To manage a pfSense firewall, ensure the [pfSense REST API (pfRest)](https://github.com/pfrest/pfSense-pkg-RESTAPI) package is installed on the target pfSense machine.
 
-1. Log in to AdmixCentral as an administrator.
+1. Log in to PFCentral as an administrator.
 2. Navigate to **Firewalls > Add Firewall**.
 3. Select **pfSense** as the firewall type.
 4. Enter the **Firewall Name**, **URL** (e.g. `https://192.0.2.1`), and **API Credentials** (Username/Password or API Token).
-5. Click **Connect**. AdmixCentral will verify connectivity, fetch system info and interfaces, and register the firewall.
+5. Click **Connect**. PFCentral will verify connectivity, fetch system info and interfaces, and register the firewall.
 
 ### Adding an OPNsense Firewall
 
-OPNsense includes a built-in REST API out of the box — no third-party packages are required. You can add an OPNsense firewall using manual API keys or AdmixCentral's automatic provisioning.
+OPNsense includes a built-in REST API out of the box — no third-party packages are required. You can add an OPNsense firewall using manual API keys or PFCentral's automatic provisioning.
 
 #### Method A — Manual API Key & Secret (Recommended)
 
@@ -520,30 +535,30 @@ OPNsense includes a built-in REST API out of the box — no third-party packages
      ```
    - *(Alternatively, you can click the **ApiKeys** tab at the top of the Users page to view and manage existing keys).*
 
-2. **Add to AdmixCentral**:
-   - In AdmixCentral, navigate to **Firewalls > Add Firewall**.
+2. **Add to PFCentral**:
+   - In PFCentral, navigate to **Firewalls > Add Firewall**.
    - Select **OPNsense** as the firewall type.
    - Enter the **Firewall Name** and **URL** (e.g. `https://192.0.2.11`).
    - Paste the 80-character `key` string from the downloaded file into **OPNsense API Key** and the `secret` string into **OPNsense API Secret**.
    > **Important:** OPNsense's REST API (`/api/*`) strictly authenticates using the generated API Key and Secret pair. Do **not** enter your login username (`root`) or Web GUI password in the API Key/Secret fields.
    - If your OPNsense instance uses a self-signed or internal certificate, expand **Trust a native or self-signed HTTPS certificate** and upload your exported `.crt`/`.pem` certificate file.
-3. Click **Connect** (or **Save Changes**). AdmixCentral will verify connectivity, fetch system telemetry and interfaces, and register the firewall.
+3. Click **Connect** (or **Save Changes**). PFCentral will verify connectivity, fetch system telemetry and interfaces, and register the firewall.
 
 #### Method B — Automatic API Key Provisioning
 
 If you prefer not to create the API key manually:
-1. In AdmixCentral, go to **Firewalls > Add Firewall** and select **OPNsense**.
+1. In PFCentral, go to **Firewalls > Add Firewall** and select **OPNsense**.
 2. Enter the **Firewall Name** and **URL**.
 3. Check the box **"Auto-generate API Keys using Web GUI credentials"**.
 4. Enter your OPNsense Web GUI **Username** (e.g. `root`) and **Password**.
 5. If using a self-signed certificate, upload the `.crt`/`.pem` certificate file.
-6. Click **Connect**. AdmixCentral will securely authenticate once against your OPNsense Web GUI session, automatically provision a dedicated API key and secret, and save them.
+6. Click **Connect**. PFCentral will securely authenticate once against your OPNsense Web GUI session, automatically provision a dedicated API key and secret, and save them.
 
 ---
 
 ## Firewall HTTPS Certificate Requirements
 
-AdmixCentral requires **HTTPS** for every firewall API connection. The API credentials are never sent over plain HTTP. How you satisfy this requirement depends on the certificate in use on the firewall's web interface.
+PFCentral requires **HTTPS** for every firewall API connection. The API credentials are never sent over plain HTTP. How you satisfy this requirement depends on the certificate in use on the firewall's web interface.
 
 ### Option 1 — ACME / Let's Encrypt (Recommended)
 
@@ -552,7 +567,7 @@ ACME certificates are issued by a public CA (Let's Encrypt) and are the recommen
 - **pfSense:** Install the **ACME** package (*System → Package Manager*), configure an account, add a certificate with your firewall's FQDN, and set it as the WebGUI certificate under *System → Advanced → Admin Access*.
 - **OPNsense:** Use the built-in **Let's Encrypt** plugin (*System → Trust → ACME Client*) to issue a certificate, then select it under *System → Settings → Administration*.
 
-Once an ACME certificate is active on the firewall, **no extra steps are needed in AdmixCentral.** The certificate is signed by a public CA that AdmixCentral already trusts — simply enter the firewall URL using its public hostname (e.g. `https://fw.example.com`) and proceed normally.
+Once an ACME certificate is active on the firewall, **no extra steps are needed in PFCentral.** The certificate is signed by a public CA that PFCentral already trusts — simply enter the firewall URL using its public hostname (e.g. `https://fw.example.com`) and proceed normally.
 
 ---
 
@@ -564,17 +579,17 @@ Any certificate signed by a publicly trusted Certificate Authority (DigiCert, Se
 
 ### Option 3 — Self-Signed or Private CA Certificate
 
-Firewalls using a self-signed certificate or a certificate issued by an internal/private CA require **certificate enrollment** in AdmixCentral. Without enrollment, connections will fail with a TLS error such as:
+Firewalls using a self-signed certificate or a certificate issued by an internal/private CA require **certificate enrollment** in PFCentral. Without enrollment, connections will fail with a TLS error such as:
 
 ```
 cURL error 60: SSL certificate problem: self-signed certificate in certificate chain
 ```
 
-AdmixCentral stores the certificate's public key and enforces it on every subsequent connection. If the key ever changes unexpectedly, the connection is refused — providing stronger protection than simply disabling TLS verification.
+PFCentral stores the certificate's public key and enforces it on every subsequent connection. If the key ever changes unexpectedly, the connection is refused — providing stronger protection than simply disabling TLS verification.
 
 #### Requirements for the firewall certificate
 
-The certificate must have a **Subject Alternative Name (SAN)** or **Common Name (CN)** that matches the hostname or IP address in the Firewall URL you configure in AdmixCentral. A certificate without a matching hostname/SAN will be rejected by TLS hostname verification even after enrollment.
+The certificate must have a **Subject Alternative Name (SAN)** or **Common Name (CN)** that matches the hostname or IP address in the Firewall URL you configure in PFCentral. A certificate without a matching hostname/SAN will be rejected by TLS hostname verification even after enrollment.
 
 > **Using a bare IP address (e.g. `https://192.0.2.1`)?**
 > The certificate must include that IP address as an IP SAN (`IP:192.0.2.1`), not just as the CN. Most firewall web GUIs do not add IP SANs to auto-generated certificates. Using a hostname is strongly recommended.
@@ -599,15 +614,15 @@ The certificate must have a **Subject Alternative Name (SAN)** or **Common Name 
 
 > **Important:** Export only the *public certificate* (`.pem` / `.crt`). Never export or upload the private key.
 
-#### Step 3 — Enroll the certificate in AdmixCentral
+#### Step 3 — Enroll the certificate in PFCentral
 
-1. In AdmixCentral, navigate to **Firewalls** and click **Edit** on the firewall, or click **Add Firewall** for a new one.
+1. In PFCentral, navigate to **Firewalls** and click **Edit** on the firewall, or click **Add Firewall** for a new one.
 2. In the **API Connection** section, find the **"Trust a native or self-signed HTTPS certificate"** panel.
 3. Click **Choose File** and select the `.crt` file exported in Step 2.
 4. Re-enter the API credentials (required whenever the trust anchor changes).
-5. Click **Save**. AdmixCentral will extract the certificate's public key, store it, and immediately verify connectivity.
+5. Click **Save**. PFCentral will extract the certificate's public key, store it, and immediately verify connectivity.
 
-From this point on, AdmixCentral will only connect to that firewall if the public key matches the enrolled value. Certificate renewals using the same key (e.g. extended lifetime with the same RSA/ECDSA key pair) continue to work without re-enrollment.
+From this point on, PFCentral will only connect to that firewall if the public key matches the enrolled value. Certificate renewals using the same key (e.g. extended lifetime with the same RSA/ECDSA key pair) continue to work without re-enrollment.
 
 #### Changing or removing an enrolled certificate
 

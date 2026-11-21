@@ -20,7 +20,7 @@ class InstallCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Install and configure AdmixCentral application';
+    protected $description = 'Install and configure PFCentral application';
 
     /**
      * Execute the console command.
@@ -33,7 +33,7 @@ class InstallCommand extends Command
         $this->info(' / ___ / /_/ / / / / / // />  </ /___/  __/ / / / /_/ /  / /_/ / /       ');
         $this->info('/_/  |_\__,_/_/ /_/ /_/_/_/|_/ \____/\___/_/ /_/\__/_/   \__,_/_/        ');
         $this->info('');
-        $this->info('Welcome to the AdmixCentral Installation Wizard!');
+        $this->info('Welcome to the PFCentral Installation Wizard!');
         $this->newLine();
 
         // 1. Environment File Check

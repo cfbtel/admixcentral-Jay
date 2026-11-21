@@ -10,7 +10,7 @@ use RuntimeException;
 /**
  * Manages the pfBlockerNG package on a pfSense firewall.
  *
- * pfBlockerNG has no REST API of its own, so AdmixCentral copies a small PHP script
+ * pfBlockerNG has no REST API of its own, so PFCentral copies a small PHP script
  * (resources/firewall-scripts/pfblockerng-bridge.php) to the firewall through the
  * REST API command prompt and runs it with pfSense's own PHP. The script reads and
  * writes the same config.xml sections the pfBlockerNG pages use.
@@ -109,7 +109,7 @@ class PfBlockerNgService
         }
         $data = json_decode((string) base64_decode($m[1]), true);
         if (!is_array($data)) {
-            throw new RuntimeException('The firewall sent an answer AdmixCentral could not read.');
+            throw new RuntimeException('The firewall sent an answer PFCentral could not read.');
         }
 
         return $data;
@@ -158,7 +158,7 @@ class PfBlockerNgService
                 . 'foreach(glob("' . self::DIR . '/pfbng-*.php") as $f){if(basename($f)!=="' . $name . '"){@unlink($f);}}echo "ACXOK";';
             $result = $this->shell(self::PHP . " -r '" . $php . "'");
             if (!str_contains($result, 'ACXOK')) {
-                throw new RuntimeException('Could not copy the AdmixCentral pfBlockerNG helper to the firewall.');
+                throw new RuntimeException('Could not copy the PFCentral pfBlockerNG helper to the firewall.');
             }
         }
 

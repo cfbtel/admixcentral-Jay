@@ -6,7 +6,7 @@ use App\Models\Company;
 use App\Models\Firewall;
 use Illuminate\Database\Eloquent\Model;
 
-/** A company firewall with WireGuard remote access managed by AdmixCentral. */
+/** A company firewall with WireGuard remote access managed by PFCentral. */
 class VpnSite extends Model
 {
     protected $table = 'vpn_sites';

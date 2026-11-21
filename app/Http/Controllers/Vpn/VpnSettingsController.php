@@ -77,7 +77,7 @@ class VpnSettingsController extends Controller
     {
         $to = $request->user()->email;
         try {
-            $mailer->send($to, 'CFBTEL VPN test email', "This is a test from AdmixCentral's VPN email settings.\n\nIf you can read this, invitations will be delivered.");
+            $mailer->send($to, 'CFBTEL VPN test email', "This is a test from PFCentral's VPN email settings.\n\nIf you can read this, invitations will be delivered.");
         } catch (\Throwable $e) {
             return redirect()->route('vpn.settings')->with('error', 'Sending failed: ' . $e->getMessage());
         }
