@@ -50,3 +50,10 @@ Schedule::call(function () {
   ->name('firmware-checks')
   ->withoutOverlapping(60)
   ->onOneServer();
+
+// Firewall web interfaces through PFCentral: end idle sessions and remove their temporary firewall accounts.
+Schedule::call(fn () => \App\Services\Security\FirewallGui::cleanUp())
+    ->everyFiveMinutes()
+    ->name('firewall-gui-cleanup')
+    ->withoutOverlapping(10)
+    ->onOneServer();

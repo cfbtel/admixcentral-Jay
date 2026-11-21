@@ -223,6 +223,13 @@
                         </svg>
                         <span :class="collapsed ? 'md:hidden' : 'block'" class="transition-opacity duration-300">{{ __('Sign-in') }}</span>
                     </a>
+                    <a href="{{ route('system.security') }}"
+                        class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('system.security*') ? 'active' : '' }}">
+                        <svg class="mr-3 h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l8 3v6c0 4.5-3.4 8.4-8 9-4.6-.6-8-4.5-8-9V6l8-3z" />
+                        </svg>
+                        <span :class="collapsed ? 'md:hidden' : 'block'" class="transition-opacity duration-300">{{ __('Security') }}</span>
+                    </a>
                 @endif
 
             @endif

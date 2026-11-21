@@ -21,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // After an in-app update, clear PHP-FPM's opcode cache once so workers run the new release.
         $middleware->prepend(\App\Http\Middleware\ResetOpcacheAfterUpdate::class);
         $middleware->append(\App\Http\Middleware\EnsureSystemIsSetup::class);
+        // Firewall web interfaces through PFCentral (System → Security), on their own host name. Runs before the session.
+        $middleware->prepend(\App\Http\Middleware\FirewallGuiHost::class);
+        // System → Security → "Require two-factor sign-in".
+        $middleware->appendToGroup('web', \App\Http\Middleware\RequireTwoFactor::class);
         $middleware->alias([
             'deny.readonly' => \App\Http\Middleware\DenyReadOnly::class,
         ]);

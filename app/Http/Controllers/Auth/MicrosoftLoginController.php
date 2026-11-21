@@ -109,6 +109,7 @@ class MicrosoftLoginController extends Controller
         RateLimiter::clear($key);
         Auth::login($user);
         $request->session()->regenerate();
+        $request->session()->put(\App\Http\Middleware\RequireTwoFactor::SESSION_VIA, 'microsoft'); // Microsoft 365 handles two-factor
         Log::info('PFCentral Microsoft sign-in', ['user' => $user->id, 'upn' => $id['upn']]);
 
         return redirect()->intended(route('dashboard', absolute: false));

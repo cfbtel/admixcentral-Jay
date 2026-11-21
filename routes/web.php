@@ -25,7 +25,20 @@ Route::middleware(['auth', 'verified', App\Http\Middleware\CheckRole::class . ':
     Route::post('/system/sign-in', [App\Http\Controllers\MspSignInController::class, 'save'])->name('system.signin.save');
     Route::get('/system/sign-in/groups', [App\Http\Controllers\MspSignInController::class, 'searchGroups'])->name('system.signin.groups');
     Route::post('/system/sign-in/auto-setup', [App\Http\Controllers\MspSignInController::class, 'autoSetup'])->name('system.signin.auto');
+
+    // System → Security: two-factor requirement, firewall web interfaces through PFCentral, web interface lock.
+    Route::get('/system/security', [App\Http\Controllers\SecurityController::class, 'show'])->name('system.security');
+    Route::post('/system/security', [App\Http\Controllers\SecurityController::class, 'save'])->name('system.security.save');
+    Route::post('/system/security/locks/{firewall}/status', [App\Http\Controllers\SecurityController::class, 'lockStatus'])->middleware('throttle:60,1')->name('system.security.lock.status');
+    Route::post('/system/security/locks/{firewall}/lock', [App\Http\Controllers\SecurityController::class, 'lock'])->middleware('throttle:20,1')->name('system.security.lock');
+    Route::post('/system/security/locks/{firewall}/unlock', [App\Http\Controllers\SecurityController::class, 'unlock'])->middleware('throttle:20,1')->name('system.security.unlock');
+    Route::post('/system/security/sessions/{session}/end', [App\Http\Controllers\SecurityController::class, 'endSession'])->whereNumber('session')->name('system.security.session.end');
 });
+
+// "Open web interface": the firewall's own web interface through PFCentral (when turned on in System → Security).
+Route::post('/firewall/{firewall}/web-interface', [App\Http\Controllers\SecurityController::class, 'openGui'])
+    ->middleware(['auth', 'verified', App\Http\Middleware\EnsureTenantScope::class, 'deny.readonly', 'throttle:20,1'])
+    ->name('firewall.web-interface');
 
 Route::get('/', function () {
     return redirect('/login');

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.15.0
+- **Security** in the menu (global admins): one page for who can sign in to PFCentral and how your team reaches each firewall. Everything on it is off until you turn it on.
+- **Require two-factor:** when on, everyone who signs in with a password or an emailed link must set up two-factor first; until they do, PFCentral only opens their profile page. Signing in with Microsoft 365 counts as two-factor. The page lists who hasn't set it up yet.
+- **Open firewalls through PFCentral (optional):** adds "Open web interface" to each pfSense firewall's pages. PFCentral creates a temporary firewall account in the technician's name, signs in for them and keeps the firewall's sign-in to itself, so no firewall password is shared. Every change they save is logged, and the account is removed when the session ends, after 30 idle minutes (you choose) or after 8 hours. Read-only users can't open it. It needs its own host name, like the VPN page.
+- **Lock firewall web interfaces to PFCentral (optional, per firewall):** a locked firewall's web interface answers only the addresses you allow from the internet; LAN access is never changed. Before locking, PFCentral checks that its own connection comes from an allowed address, and if it can't confirm the lock afterwards, the firewall undoes it by itself within 3 minutes. Check, lock and unlock from the Security page.
+- The Security page lists every web interface session: who, which firewall, how long and what they changed, with "End now" for open ones.
+
 ### Added — v0.14.0
 - **Upgrades** in the menu: an upgrade centre for pfSense firewalls, ready for pfSense 26.10.
 - **Check:** PFCentral reads each firewall's version, whether a newer version is offered, free disk, saved config versions, the way back (ZFS) and the REST API package. It checks every night and on demand, and shows what to fix before upgrading.

@@ -47,6 +47,16 @@
                 </a>
             </div>
         </div>
+        @if(!$firewall->isOpnSense() && \App\Services\Security\SecuritySettings::guiProxyEnabled() && auth()->user() && !auth()->user()->isReadOnly())
+            <form method="POST" action="{{ route('firewall.web-interface', $firewall) }}" target="_blank" class="ml-4 flex-shrink-0">
+                @csrf
+                <button type="submit" title="Opens the firewall's own web interface through PFCentral, signed in as you with a temporary account. Your changes are logged."
+                    class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    Open web interface
+                </button>
+            </form>
+        @endif
         @if(isset($actions))
             <div class="ml-4 flex-shrink-0">
                 {{ $actions }}
