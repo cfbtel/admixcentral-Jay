@@ -15,15 +15,21 @@
                 <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">Deployments</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">The same firewall rules, aliases, port forwards or pfBlockerNG lists on many firewalls, checked first, in waves, with undo.</p>
             </div>
-            @unless(auth()->user()->isReadOnly())
+            @if(!$why)
                 <a href="{{ route('deployments.create') }}" class="rounded-md bg-brand-950 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-900 dark:bg-brand-500 dark:hover:bg-brand-400">New deployment</a>
-            @endunless
+            @endif
         </div>
     </x-slot>
 
     <div class="py-6">
         <div class="max-w-5xl mx-auto sm:px-6 lg:px-8 space-y-5">
             @include('vpn.admin._notices')
+            @if($why)
+                <p class="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{{ $why }}</p>
+            @endif
+            @if($manageAccess)
+                @include('deployments._access')
+            @endif
             <section class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
                 @forelse($deployments as $d)
                     @php [$word, $tone] = $tones[$d->status] ?? [$d->status, $tones['draft'][1]]; @endphp

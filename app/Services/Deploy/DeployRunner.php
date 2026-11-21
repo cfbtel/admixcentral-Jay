@@ -37,7 +37,7 @@ final class DeployRunner
         }
         $counts = collect($plan)->countBy('status');
         $parts = [];
-        foreach (['create' => 'to add', 'update' => 'to update', 'same' => 'already set'] as $k => $word) {
+        foreach (['create' => 'to add', 'update' => 'to update', 'remove' => 'to remove', 'same' => 'already set'] as $k => $word) {
             if ($counts->get($k)) {
                 $parts[] = $counts->get($k) . ' ' . $word;
             }
@@ -51,7 +51,7 @@ final class DeployRunner
         return [
             'version' => $answer['version'] ?? null,
             'pfblockerng' => $answer['pfblockerng'] ?? null,
-            'plan' => array_map(fn ($p) => ['n' => $p['n'] ?? null, 'status' => $p['status'] ?? null, 'messages' => $p['messages'] ?? []], $answer['plan'] ?? []),
+            'plan' => array_map(fn ($p) => ['n' => $p['n'] ?? null, 'status' => $p['status'] ?? null, 'target' => $p['target'] ?? null, 'messages' => $p['messages'] ?? []], $answer['plan'] ?? []),
         ];
     }
 

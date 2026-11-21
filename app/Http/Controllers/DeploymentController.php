@@ -8,6 +8,9 @@ use App\Jobs\UndoDeploymentTargetJob;
 use App\Models\Deployment;
 use App\Models\DeploymentTarget;
 use App\Models\Firewall;
+use App\Services\Auth\MspSignIn;
+use App\Services\Deploy\DeployAccess;
+use App\Services\Deploy\DeployHelper;
 use App\Services\Deploy\DeployItems;
 use App\Services\Deploy\DeployRunner;
 use Illuminate\Http\Request;
@@ -31,11 +34,18 @@ class DeploymentController extends Controller
             'targets as package_count' => fn ($q) => $q->where('status', 'needs_package'),
         ])->orderByDesc('id')->limit(200)->get()->filter(fn ($d) => $d->visibleTo($user))->take(50)->values();
 
-        return view('deployments.index', ['deployments' => $deployments]);
+        return view('deployments.index', [
+            'deployments' => $deployments,
+            'why' => DeployAccess::why($user),
+            'access' => DeployAccess::get(),
+            'manageAccess' => $user->isGlobalAdmin() && !$user->isReadOnly(),
+            'canPick' => DeployAccess::canPick(),
+        ]);
     }
 
     public function create(Request $request)
     {
+        $this->mayDeploy($request);
         $user = $request->user();
         $copy = null;
         if ($request->filled('from')) {
@@ -57,6 +67,7 @@ class DeploymentController extends Controller
 
     public function edit(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         abort_unless($deployment->isDraft(), 409, 'This deployment has started; make a new one from it instead.');
         return view('deployments.form', [
@@ -71,11 +82,13 @@ class DeploymentController extends Controller
 
     public function store(Request $request)
     {
+        $this->mayDeploy($request);
         return $this->save($request, null);
     }
 
     public function update(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         abort_unless($deployment->isDraft(), 409, 'This deployment has started; make a new one from it instead.');
         return $this->save($request, $deployment);
@@ -155,9 +168,10 @@ class DeploymentController extends Controller
             'scheduledAt' => $d->scheduled_at?->toIso8601String(),
             'scheduledWave' => $d->scheduled_wave,
             'scheduledBy' => $d->scheduled_by,
-            'readOnly' => $request->user()->isReadOnly(),
+            'readOnly' => !DeployAccess::allows($request->user()),
+            'why' => DeployAccess::why($request->user()),
             'packages' => DeployItems::packages($d->items),
-            'items' => array_map(fn ($i) => ['kind' => $i['kind'], 'kindLabel' => DeployItems::KINDS[$i['kind']] ?? $i['kind'], 'label' => $i['label']], $d->items),
+            'items' => array_map(fn ($i) => ['kind' => $i['kind'], 'kindLabel' => DeployItems::KINDS[$i['kind']] ?? $i['kind'], 'label' => $i['label'], 'remove' => ($i['mode'] ?? 'present') === 'remove', 'internal' => ($i['interface'] ?? null) === '@internal'], $d->items),
             'waves' => $waves,
             'targets' => $d->targets->sortBy([['wave', 'asc'], ['id', 'asc']])->values()->map(fn (DeploymentTarget $t) => [
                 'id' => $t->id,
@@ -182,6 +196,7 @@ class DeploymentController extends Controller
 
     public function recheck(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         abort_unless($deployment->isDraft(), 409, 'Pre-checks run again by themselves when each firewall is deployed.');
         $targets = $deployment->targets()->get();
@@ -197,6 +212,7 @@ class DeploymentController extends Controller
 
     public function setWave(Request $request, Deployment $deployment, DeploymentTarget $target)
     {
+        $this->mayDeploy($request);
         $this->target($request, $deployment, $target);
         $request->validate(['wave' => ['required', 'integer', 'min:1', 'max:20']]);
         abort_unless(in_array($target->status, DeploymentTarget::NOT_STARTED, true), 409, 'This firewall has already been deployed.');
@@ -206,6 +222,7 @@ class DeploymentController extends Controller
 
     public function removeTarget(Request $request, Deployment $deployment, DeploymentTarget $target)
     {
+        $this->mayDeploy($request);
         $this->target($request, $deployment, $target);
         abort_unless(in_array($target->status, DeploymentTarget::NOT_STARTED, true), 409, 'This firewall has already been deployed.');
         abort_if($deployment->targets()->count() <= 1, 409, 'A deployment needs at least one firewall.');
@@ -216,6 +233,7 @@ class DeploymentController extends Controller
 
     public function startWave(Request $request, Deployment $deployment, int $wave)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         $deployment->load('targets');
         [$ok, $why] = DeployRunner::canStartWave($deployment, $wave);
@@ -226,6 +244,7 @@ class DeploymentController extends Controller
 
     public function schedule(Request $request, Deployment $deployment, int $wave)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         $request->validate(['at' => ['required', 'date'], 'tz' => ['nullable', 'timezone']]);
         $at = Carbon::parse($request->input('at'), $request->input('tz') ?: config('app.timezone'))->utc();
@@ -241,6 +260,7 @@ class DeploymentController extends Controller
 
     public function unschedule(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         $deployment->update(['scheduled_at' => null, 'scheduled_wave' => null, 'scheduled_by' => null]);
         return response()->json(['ok' => true]);
@@ -248,6 +268,7 @@ class DeploymentController extends Controller
 
     public function retry(Request $request, Deployment $deployment, DeploymentTarget $target)
     {
+        $this->mayDeploy($request);
         $this->target($request, $deployment, $target);
         abort_if($deployment->status === 'stopped', 409, 'This deployment was stopped.');
         if ($deployment->isDraft()) {
@@ -264,6 +285,7 @@ class DeploymentController extends Controller
 
     public function skip(Request $request, Deployment $deployment, DeploymentTarget $target)
     {
+        $this->mayDeploy($request);
         $this->target($request, $deployment, $target);
         abort_unless(in_array($target->status, ['ready', 'problem', 'failed', 'undone', 'needs_package'], true), 409, 'This firewall can\'t be skipped now.');
         $target->update(['status' => 'skipped', 'message' => trim(($target->message ? $target->message . ' ' : '') . 'Skipped by ' . $request->user()->email . '.'), 'finished_at' => now()]);
@@ -273,6 +295,7 @@ class DeploymentController extends Controller
 
     public function undo(Request $request, Deployment $deployment, DeploymentTarget $target)
     {
+        $this->mayDeploy($request);
         $this->target($request, $deployment, $target);
         abort_unless($target->status === 'done' && !empty($target->undo), 409, 'There is nothing to undo on this firewall.');
         $this->queueUndo($deployment, collect([$target]), $request->user()->email);
@@ -281,6 +304,7 @@ class DeploymentController extends Controller
 
     public function undoAll(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         $targets = $deployment->targets()->get()->filter(fn ($t) => $t->status === 'done' && !empty($t->undo));
         abort_if($targets->isEmpty(), 409, 'There is nothing to undo.');
@@ -305,6 +329,7 @@ class DeploymentController extends Controller
 
     public function stop(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         $deployment->update(['status' => 'stopped', 'scheduled_at' => null, 'scheduled_wave' => null]);
         $deployment->targets()->whereIn('status', ['pending', 'checking', 'ready', 'problem', 'queued'])->update(['status' => 'skipped', 'message' => 'Stopped by ' . $request->user()->email . '.']);
@@ -314,10 +339,70 @@ class DeploymentController extends Controller
 
     public function destroy(Request $request, Deployment $deployment)
     {
+        $this->mayDeploy($request);
         $this->visible($request, $deployment);
         abort_unless($deployment->isDraft(), 409, 'A deployment that has started is kept as a record; stop it instead.');
         $deployment->delete();
         return redirect()->route('deployments.index')->with('success', 'Deployment deleted. Nothing had been changed on the firewalls.');
+    }
+
+    /** A firewall's rules, aliases, NAT, DNS and other settings, as changes that can be copied to other firewalls. */
+    public function export(Request $request, Firewall $firewall)
+    {
+        $this->mayDeploy($request);
+        abort_unless(DeployRunner::firewallsFor($request->user())->whereKey($firewall->id)->exists(), 404);
+        abort_if($firewall->isOpnSense(), 422, 'Copying is for pfSense firewalls.');
+        try {
+            $answer = (new DeployHelper($firewall))->export();
+        } catch (\Throwable $e) {
+            abort(502, 'Couldn\'t read the firewall: ' . $e->getMessage());
+        }
+        $out = [];
+        foreach ((array) ($answer['items'] ?? []) as $raw) {
+            [$items, $errors] = DeployItems::normalize([$raw]);
+            if ($items && !$errors) {
+                $out[] = $items[0] + ['kindLabel' => DeployItems::KINDS[$items[0]['kind']]];
+            }
+        }
+        return response()->json(['firewall' => $firewall->name, 'version' => $answer['version'] ?? null, 'items' => $out]);
+    }
+
+    /** Microsoft 365 people or groups of the MSP's tenant, to pick who can deploy. */
+    public function accessSearch(Request $request)
+    {
+        $this->manageAccess($request);
+        $request->validate(['type' => ['required', 'in:users,groups'], 'q' => ['nullable', 'string', 'max:100']]);
+        abort_unless(DeployAccess::canPick(), 409, 'Set up "Sign in with Microsoft 365" first (Sign-in settings): people and groups come from that tenant.');
+        try {
+            $ms = MspSignIn::microsoft();
+            $q = (string) $request->input('q', '');
+            $results = $request->input('type') === 'users'
+                ? collect($ms->searchUsers((string) MspSignIn::tenantId(), $q))->filter(fn ($u) => $u['enabled'] && !$u['guest'])->map(fn ($u) => ['oid' => $u['oid'], 'name' => $u['name'], 'upn' => $u['upn']])->values()
+                : collect($ms->searchGroups((string) MspSignIn::tenantId(), $q))->map(fn ($g) => ['id' => $g['id'], 'name' => $g['name']])->values();
+        } catch (\Throwable $e) {
+            abort(502, $e->getMessage());
+        }
+        return response()->json(['results' => $results]);
+    }
+
+    public function accessSave(Request $request)
+    {
+        $this->manageAccess($request);
+        $request->validate(['users' => ['array', 'max:' . DeployAccess::MAX], 'groups' => ['array', 'max:' . DeployAccess::MAX]]);
+        DeployAccess::set((array) $request->input('users', []), (array) $request->input('groups', []), $request->user()->email);
+        return response()->json(['ok' => true, 'access' => DeployAccess::get()]);
+    }
+
+    private function manageAccess(Request $request): void
+    {
+        abort_unless($request->user()->isGlobalAdmin() && !$request->user()->isReadOnly(), 403, 'Only global administrators choose who can deploy.');
+    }
+
+    private function mayDeploy(Request $request): void
+    {
+        if ($why = DeployAccess::why($request->user())) {
+            abort(403, $why);
+        }
     }
 
     private function pickable(Request $request): array

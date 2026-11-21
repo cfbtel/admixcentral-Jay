@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.18.0
+- **Deployments cover much more:** firewall rules and floating rules, aliases, schedules, port forwards, outbound NAT rules, 1:1 NAT, DNS Resolver host and domain overrides, static routes, pfBlockerNG IPv4 and IPv6 lists and DNSBL groups, system tunables, and the DNS servers, time (NTP) servers, remote logging (syslog) and time zone of each firewall.
+- **Remove from many firewalls:** every change can also remove that item (an old rule, alias, port forward and so on). Firewalls that don't have it show "Already set"; undo puts it back where it was.
+- **Every internal interface:** a firewall rule can go on every internal (LAN-type) interface of each firewall at once: enter "@internal" as the interface.
+- Rules can use a schedule and a gateway (policy routing), and can be added disabled.
+- Outbound NAT: if a firewall is in automatic mode it is switched to hybrid (which keeps the automatic rules) so the new rules work; undo switches it back.
+- **Copy from a firewall:** read one firewall's rules, aliases, NAT, DNS overrides, routes, pfBlockerNG lists and settings, tick what you want, and deploy it to others. Nothing on that firewall changes.
+- **Who can deploy:** global admins pick Microsoft 365 people and groups (from the tenant used for "Sign in with Microsoft 365") under Deployments → Who can deploy. Only they can create, start, schedule or undo deployments; everyone else can only look. Until someone is picked, nobody can deploy.
+- The Firewalls page's bulk actions show the deploy options only to people who can deploy.
+
 ### Added — v0.17.0
 - **Deployments** in the menu: send the same changes to many pfSense firewalls at once, checked first, in waves, with undo. Start one from the Firewalls page (select firewalls → "Deploy changes") or from Deployments → New deployment.
 - **Four kinds of change:** firewall rules (at the top or bottom of an interface's list), aliases, port forwards (with their pass rule) and pfBlockerNG IP lists (sources, action, update frequency, logging, custom list).

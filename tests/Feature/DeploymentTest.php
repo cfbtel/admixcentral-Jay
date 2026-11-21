@@ -7,6 +7,8 @@ use App\Models\Deployment;
 use App\Models\DeploymentTarget;
 use App\Models\Firewall;
 use App\Models\User;
+use App\Services\Auth\MspSignIn;
+use App\Services\Deploy\DeployAccess;
 use App\Services\Deploy\DeployHelper;
 use App\Services\Deploy\DeployItems;
 use App\Services\Deploy\DeployRunner;
@@ -17,6 +19,10 @@ use Tests\TestCase;
 class DeploymentTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const JAY = '55555555-5555-4555-8555-555555555555';
+    private const SAM = '66666666-6666-4666-8666-666666666666';
+    private const GROUP = '77777777-7777-4777-8777-777777777777';
 
     /** firewall name => what the fake firewall does */
     private array $fw = [];
@@ -49,6 +55,7 @@ class DeploymentTest extends TestCase
     protected function tearDown(): void
     {
         DeployHelper::$fake = null;
+        MspSignIn::$factory = null;
         parent::tearDown();
     }
 
@@ -62,9 +69,13 @@ class DeploymentTest extends TestCase
             return $u;
         };
         $fw = fn (string $name, Company $c, string $os = 'pfsense') => Firewall::create(['name' => $name, 'company_id' => $c->id, 'url' => 'https://' . strtolower(str_replace(' ', '', $name)) . '.test', 'os_type' => $os, 'auth_method' => 'basic', 'api_key' => 'u', 'api_secret' => 'p', 'netgate_id' => strtolower(str_replace(' ', '-', $name))]);
+        $jay = $mk('jay@cfbtel.com', 'admin', null);
+        $jay->forceFill(['ms_oid' => self::JAY])->save();
+        DeployAccess::set([['oid' => self::JAY, 'name' => 'Jay', 'upn' => 'jay@cfbtel.com']], [], 'test');
         return [
-            'global' => $mk('jay@cfbtel.com', 'admin', null),
-            'acmeAdmin' => $mk('it@acme.test', 'admin', $acme->id),
+            'global' => $jay,
+            'acmeAdmin' => $jay,
+            'companyAdmin' => $mk('it@acme.test', 'admin', $acme->id),
             'acmeRo' => $mk('ro@acme.test', 'readonly', $acme->id),
             'hq' => $fw('Acme HQ', $acme),
             'branch' => $fw('Acme Branch', $acme),
@@ -87,13 +98,30 @@ class DeploymentTest extends TestCase
     {
         [$items, $errors] = DeployItems::normalize($this->items());
         $this->assertSame([], $errors);
-        $this->assertSame(['1.2.3.4', '5.6.7.8'], $items[3]['entries']);
-        $this->assertSame('pfBlockerNG IP list RDPDC0pfblocker (Alias Permit)', $items[0]['label']);
+        $this->assertSame("1.2.3.4\n5.6.7.8", $items[3]['entries']);
+        $this->assertSame('Alias Office (host, 2 entries)', $items[3]['label']);
+        $this->assertSame('pfBlockerNG IPv4 list RDPDC0pfblocker (Alias Permit)', $items[0]['label']);
         $this->assertStringContainsString('3389 → 192.168.1.10', $items[1]['label']);
         $this->assertSame(['pfBlockerNG'], DeployItems::packages($items));
 
         [, $errors] = DeployItems::normalize([['kind' => 'rule', 'descr' => ''], ['kind' => 'alias', 'name' => 'bad name!'], ['kind' => 'nat', 'descr' => 'x'], ['kind' => 'wat']]);
-        $this->assertCount(6, $errors);
+        $this->assertContains('Change 1 (Firewall rule): Description is needed.', $errors);
+        $this->assertContains('Change 2 (Alias): the name can only use letters, numbers and underscores.', $errors);
+        $this->assertContains('Change 3 (Port forward): Outside port is needed.', $errors);
+        $this->assertContains('Change 4: unknown kind of change.', $errors);
+
+        // Remove keeps only what identifies the item; settings can't be removed.
+        [$items, $errors] = DeployItems::normalize([
+            ['kind' => 'rule', 'mode' => 'remove', 'interface' => 'LAN', 'descr' => 'Old rule', 'action' => 'pass'],
+            ['kind' => 'timezone', 'mode' => 'remove', 'timezone' => 'Nope/Zone'],
+            ['kind' => 'schedule', 'name' => 'WorkHours', 'ranges' => [['days' => [5, 1, 9], 'start' => '08:00', 'stop' => '17:59']]],
+            ['kind' => 'rule', 'interface' => '@internal', 'descr' => 'Block SMTP', 'action' => 'block'],
+        ]);
+        $this->assertSame([], $errors);
+        $this->assertSame(['kind' => 'rule', 'mode' => 'remove', 'interface' => 'LAN', 'descr' => 'Old rule', 'label' => 'Remove rule on LAN: Old rule'], $items[0]);
+        $this->assertSame(['present', 'America/Los_Angeles'], [$items[1]['mode'], $items[1]['timezone']]);
+        $this->assertSame([1, 5], $items[2]['ranges'][0]['days']);
+        $this->assertSame('Block rule on every internal interface: Block SMTP', $items[3]['label']);
         [, $errors] = DeployItems::normalize([]);
         $this->assertSame(['Add at least one change.'], $errors);
     }
@@ -106,7 +134,8 @@ class DeploymentTest extends TestCase
         $this->actingAs($w['acmeRo'])->get('/deployments')->assertOk();
         $this->actingAs($w['acmeRo'])->get('/deployments/new')->assertForbidden();
 
-        // A company admin only gets their own company's firewalls, and OPNsense is left out.
+        $this->actingAs($w['companyAdmin'])->get('/deployments/new')->assertForbidden();
+        // OPNsense is left out.
         $r = $this->actingAs($w['acmeAdmin'])->post('/deployments', [
             'name' => 'RDP allow list',
             'firewall_ids' => [$w['hq']->id, $w['branch']->id, $w['opn']->id, $w['beta']->id],
@@ -114,8 +143,10 @@ class DeploymentTest extends TestCase
         ]);
         $d = Deployment::firstOrFail();
         $r->assertRedirect(route('deployments.show', $d))->assertSessionHas('warning');
-        $this->assertSame($w['acmeAdmin']->company_id, $d->company_id);
-        $this->assertSame([$w['hq']->id, $w['branch']->id], $d->targets()->orderBy('id')->pluck('firewall_id')->all());
+        $this->assertNull($d->company_id); // spans two companies: only global admins see it
+        $this->assertSame([$w['hq']->id, $w['branch']->id, $w['beta']->id], $d->targets()->orderBy('id')->pluck('firewall_id')->all());
+        $d->targets()->where('firewall_id', $w['beta']->id)->delete();
+        $d->update(['company_id' => $w['hq']->company_id]);
 
         $t = $d->targets()->get()->keyBy('firewall_id');
         $this->assertSame('ready', $t[$w['hq']->id]->status);
@@ -124,7 +155,7 @@ class DeploymentTest extends TestCase
         $this->assertSame(2, $t[$w['branch']->id]->wave);
         $this->assertStringContainsString('pfBlockerNG is not installed', $t[$w['branch']->id]->message);
         $this->assertSame('ready', $d->fresh()->status);
-        $this->assertSame(['check', 'check'], array_column($this->calls, 1));
+        $this->assertSame(['check', 'check', 'check'], array_column($this->calls, 1));
 
         // Beta can't see it; the page and its data work for Acme.
         $this->actingAs($w['global'])->get("/deployments/{$d->id}")->assertOk()->assertSee('RDP allow list');
@@ -234,5 +265,65 @@ class DeploymentTest extends TestCase
         $this->assertNull($d->fresh()->scheduled_at);
         $this->actingAs($w['global'])->get("/deployments/{$d->id}/edit")->assertStatus(409);
         $this->actingAs($w['global'])->get('/deployments')->assertOk()->assertSee('Only the rule')->assertSee('1 of 1 deployed');
+    }
+
+    public function test_only_the_picked_microsoft_365_people_and_groups_can_deploy(): void
+    {
+        $w = $this->world();
+        $ms = new MspFakeMicrosoft();
+        $ms->groups = [self::GROUP => ['name' => 'Firewall Team', 'members' => [self::SAM]]];
+        MspSignIn::$factory = fn () => $ms;
+        MspSignIn::set('tenant_id', PfCentralBrandAndSignInTest::TENANT);
+        MspSignIn::set('client_id', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+        MspSignIn::setClientSecret('s3cret');
+
+        $sam = User::create(['name' => 'Sam', 'email' => 'sam@cfbtel.com', 'password' => 'password', 'role' => 'admin', 'company_id' => null]);
+        $sam->forceFill(['email_verified_at' => now(), 'ms_oid' => self::SAM])->save();
+        $pw = User::create(['name' => 'Local', 'email' => 'local@cfbtel.com', 'password' => 'password', 'role' => 'admin', 'company_id' => null]);
+        $pw->forceFill(['email_verified_at' => now()])->save();
+
+        // Jay is picked by name; Sam isn't yet; a global admin without Microsoft 365 never can; company admins never can.
+        $this->assertTrue(DeployAccess::allows($w['global']));
+        $this->actingAs($sam)->get('/deployments/new')->assertForbidden();
+        $this->actingAs($pw)->get('/deployments/new')->assertForbidden();
+        $this->actingAs($w['companyAdmin'])->get('/deployments/new')->assertForbidden();
+        $this->actingAs($sam)->get('/deployments')->assertOk()->assertSee('You are not one of the people who can deploy')->assertDontSee('href="' . route('deployments.create') . '"', false);
+
+        // Only global admins pick who can deploy, from the Microsoft 365 tenant.
+        $this->actingAs($w['companyAdmin'])->getJson('/deployments/access/search?type=groups&q=fire')->assertForbidden();
+        $this->actingAs($w['global'])->getJson('/deployments/access/search?type=groups&q=fire')->assertOk()->assertJsonPath('results.0.name', 'Firewall Team');
+        $this->actingAs($w['global'])->postJson('/deployments/access', [
+            'users' => [['oid' => self::JAY, 'name' => 'Jay', 'upn' => 'jay@cfbtel.com']],
+            'groups' => [['id' => self::GROUP, 'name' => 'Firewall Team'], ['id' => 'not-a-guid', 'name' => 'x']],
+        ])->assertOk()->assertJsonCount(1, 'access.groups');
+
+        // Sam is in the group (checked with Microsoft, then remembered for a few minutes).
+        $this->actingAs($sam)->get('/deployments/new')->assertOk();
+        $this->actingAs($sam)->get('/deployments/new')->assertOk();
+        $this->assertSame(1, collect($ms->calls)->filter(fn ($c) => $c === 'memberOf ' . self::SAM)->count());
+        $this->actingAs($sam)->get('/deployments')->assertSee('Who can deploy')->assertSee('Firewall Team');
+
+        // Nobody picked: nobody can deploy, not even Jay.
+        DeployAccess::set([], [], 'test');
+        $this->actingAs($w['global'])->get('/deployments/new')->assertForbidden();
+        $this->actingAs($w['global'])->get('/deployments')->assertSee('Nobody can deploy yet');
+    }
+
+    public function test_changes_can_be_copied_from_a_firewall(): void
+    {
+        $w = $this->world();
+        DeployHelper::$fake = function (Firewall $f, string $action) {
+            $this->assertSame('export', $action);
+            return ['ok' => true, 'version' => '2.8.1', 'items' => [
+                ['kind' => 'alias', 'name' => 'Office', 'type' => 'host', 'entries' => ['1.2.3.4'], 'descr' => ''],
+                ['kind' => 'rule', 'interface' => 'LAN', 'action' => 'pass', 'protocol' => 'any', 'source' => 'LANnet', 'destination' => 'any', 'descr' => 'Default allow LAN'],
+                ['kind' => 'host_override', 'host' => 'nas', 'domain' => 'corp.local', 'ip' => '10.0.0.20'],
+                ['kind' => 'rule', 'interface' => 'LAN', 'descr' => ''], // no description: can't be copied
+            ]];
+        };
+        $r = $this->actingAs($w['global'])->getJson("/deployments/copy-from/{$w['hq']->id}")->assertOk();
+        $this->assertSame(['Alias Office (host, 1 entries)', 'Pass rule on LAN: Default allow LAN', 'DNS host override nas.corp.local → 10.0.0.20'], array_column($r->json('items'), 'label'));
+        $this->actingAs($w['companyAdmin'])->getJson("/deployments/copy-from/{$w['hq']->id}")->assertForbidden();
+        $this->actingAs($w['global'])->getJson("/deployments/copy-from/{$w['opn']->id}")->assertStatus(422);
     }
 }

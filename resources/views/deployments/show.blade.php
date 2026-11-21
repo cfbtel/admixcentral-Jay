@@ -67,9 +67,9 @@ window.deploymentPage = function (cfg) {
             return 'bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-600';
         },
         spinning(s) { return ['checking', 'queued', 'deploying', 'undoing'].includes(s); },
-        planWord(s) { return { create: 'Will add', update: 'Will update', same: 'Already set', needs_package: 'Needs package', error: 'Won\'t fit' }[s] || s; },
+        planWord(s) { return { create: 'Will add', update: 'Will update', remove: 'Will remove', same: 'Already set', needs_package: 'Needs package', error: 'Won\'t fit' }[s] || s; },
         planTone(s) {
-            return { create: 'text-emerald-700 dark:text-emerald-300', update: 'text-brand-700 dark:text-brand-300', same: 'text-gray-500 dark:text-gray-400', needs_package: 'text-amber-700 dark:text-amber-300', error: 'text-red-700 dark:text-red-300' }[s] || 'text-gray-500';
+            return { remove: 'text-red-700 dark:text-red-300', create: 'text-emerald-700 dark:text-emerald-300', update: 'text-brand-700 dark:text-brand-300', same: 'text-gray-500 dark:text-gray-400', needs_package: 'text-amber-700 dark:text-amber-300', error: 'text-red-700 dark:text-red-300' }[s] || 'text-gray-500';
         },
         depLabel(s) { return { draft: 'Checking firewalls', ready: 'Ready to deploy', running: 'Running', attention: 'Needs attention', completed: 'Completed', stopped: 'Stopped' }[s] || s; },
         depTone(s) {
@@ -86,7 +86,7 @@ window.deploymentPage = function (cfg) {
             const p = t.plan || [];
             if (!p.length) return '';
             const c = s => p.filter(x => x.status === s).length;
-            return [c('create') && c('create') + ' to add', c('update') && c('update') + ' to update', c('same') && c('same') + ' already set'].filter(Boolean).join(', ');
+            return [c('create') && c('create') + ' to add', c('update') && c('update') + ' to update', c('remove') && c('remove') + ' to remove', c('same') && c('same') + ' already set'].filter(Boolean).join(', ');
         },
         fmt,
     };
@@ -137,6 +137,7 @@ window.deploymentPage = function (cfg) {
                     </li>
                 </template>
             </ol>
+            <p class="mt-3 text-sm text-amber-800 dark:text-amber-200" x-show="d.why" x-text="d.why"></p>
             <p class="mt-3 text-sm text-amber-800 dark:text-amber-200" x-show="d.packages.length" x-text="'Needs ' + d.packages.join(', ') + ' on each firewall. Firewalls without it are skipped and listed below.'"></p>
 
             <p class="mt-4 text-sm text-gray-600 dark:text-gray-300" x-show="d.draft">
@@ -265,7 +266,7 @@ window.deploymentPage = function (cfg) {
                                 <template x-for="p in t.plan" :key="p.n">
                                     <li class="text-sm">
                                         <span class="font-medium" :class="planTone(p.status)" x-text="planWord(p.status)"></span>
-                                        <span class="text-gray-700 dark:text-gray-200" x-text="'· ' + (d.items[p.n] ? d.items[p.n].label : 'Change ' + (p.n + 1))"></span>
+                                        <span class="text-gray-700 dark:text-gray-200" x-text="'· ' + (d.items[p.n] ? d.items[p.n].label : 'Change ' + (p.n + 1)) + (p.target && d.items[p.n] && d.items[p.n].internal ? ' (' + p.target + ')' : '')"></span>
                                         <template x-for="m in p.messages" :key="m"><span class="block pl-4 text-xs text-gray-600 dark:text-gray-400" x-text="m"></span></template>
                                     </li>
                                 </template>

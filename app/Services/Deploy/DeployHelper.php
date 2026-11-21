@@ -39,6 +39,12 @@ class DeployHelper
         return $this->call('apply', ['items' => $items, 'label' => $label]);
     }
 
+    /** What the firewall has, as deployment items (to copy to other firewalls). */
+    public function export(): array
+    {
+        return $this->call('export');
+    }
+
     public function undo(array $undo, string $label): array
     {
         return $this->call('undo', ['undo' => $undo, 'label' => $label]);

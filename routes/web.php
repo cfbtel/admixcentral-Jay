@@ -187,6 +187,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $c = App\Http\Controllers\DeploymentController::class;
         Route::get('/', [$c, 'index'])->name('index');
         Route::get('/new', [$c, 'create'])->middleware('deny.readonly')->name('create');
+        Route::get('/copy-from/{firewall}', [$c, 'export'])->whereNumber('firewall')->middleware(['deny.readonly', 'throttle:20,1'])->name('export');
+        Route::get('/access/search', [$c, 'accessSearch'])->middleware(['deny.readonly', 'throttle:60,1'])->name('access.search');
+        Route::post('/access', [$c, 'accessSave'])->middleware('deny.readonly')->name('access.save');
         Route::post('/', [$c, 'store'])->middleware('deny.readonly')->name('store');
         Route::get('/{deployment}', [$c, 'show'])->whereNumber('deployment')->name('show');
         Route::get('/{deployment}/data', [$c, 'data'])->whereNumber('deployment')->name('data');

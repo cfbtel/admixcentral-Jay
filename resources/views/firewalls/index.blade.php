@@ -633,13 +633,17 @@
                                         <option value="update_rest_api">Update REST API</option>
                                         <option value="create_package">Install Package</option>
                                     </optgroup>
+                                    @if(\App\Services\Deploy\DeployAccess::allows(auth()->user()))
                                     <optgroup label="Deploy (checked first, with undo)">
                                         <option value="deploy">Deploy changes…</option>
                                         <option value="deploy_rule">Firewall rule</option>
                                         <option value="deploy_alias">Alias</option>
                                         <option value="deploy_nat">Port forward</option>
+                                        <option value="deploy_outbound">Outbound NAT rule</option>
+                                        <option value="deploy_host_override">DNS host override</option>
                                         <option value="deploy_pfb_ipv4">pfBlockerNG IP list</option>
                                     </optgroup>
+                                    @endif
                                     <optgroup label="Configuration (Add to All)">
                                         <option value="create_nat">Add NAT 1:1 / Port Forward</option>
                                         <option value="create_ipsec">Add IPSec Tunnel</option>
