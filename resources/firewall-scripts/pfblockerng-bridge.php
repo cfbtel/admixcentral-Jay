@@ -2,7 +2,7 @@
 /*
  * PFCentral pfBlockerNG bridge.
  *
- * PFCentral copies this file to the firewall (/root/.admixcentral/) through the
+ * PFCentral copies this file to the firewall (/root/.pfcentral/) through the
  * pfSense REST API command prompt and runs it with the PHP CLI that ships with pfSense:
  *
  *   /usr/local/bin/php pfbng-<hash>.php <action> [<base64 JSON arguments> | @/tmp/acx_<name>]

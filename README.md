@@ -91,54 +91,54 @@ PFCentral is a centralized firewall management dashboard engineered for managing
 
 ## Screenshots
 <p align="center">
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Card.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Card.png" width="30%" alt="Dashboard Card View">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Card.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Card.png" width="30%" alt="Dashboard Card View">
   </a>
 
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Compact.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Compact.png" width="30%" alt="Dashboard Compact View">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Compact.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Compact.png" width="30%" alt="Dashboard Compact View">
   </a>
 
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Add-Company.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Add-Company.png" width="30%" alt="Add Company">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Add-User.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Add-User.png" width="30%" alt="Add User">
-  </a>
-
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-Dashboard-1.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-Dashboard-1.png" width="30%" alt="Firewall Dashboard">
-  </a>
-
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-Dashboard-2.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-Dashboard-2.png" width="30%" alt="Firewall Dashboard">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Add-Company.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Add-Company.png" width="30%" alt="Add Company">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-NAT-1.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-NAT-1.png" width="30%" alt="Firewall NAT">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Add-User.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Add-User.png" width="30%" alt="Add User">
   </a>
 
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-Rules-1.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-Rules-1.png" width="30%" alt="Firewall Rules">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-Dashboard-1.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-Dashboard-1.png" width="30%" alt="Firewall Dashboard">
   </a>
 
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-System-1.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Firewall-System-1.png" width="30%" alt="Firewall System">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-Dashboard-2.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-Dashboard-2.png" width="30%" alt="Firewall Dashboard">
   </a>
 </p>
 
 <p align="center">
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Settings-1.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Settings-1.png" width="30%" alt="Settings">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-NAT-1.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-NAT-1.png" width="30%" alt="Firewall NAT">
   </a>
 
-  <a href="https://admixcentralmedia.admix.cloud/AdmixC-Settings-2.png">
-    <img src="https://admixcentralmedia.admix.cloud/AdmixC-Settings-2.png" width="30%" alt="Settings">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-Rules-1.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-Rules-1.png" width="30%" alt="Firewall Rules">
+  </a>
+
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-System-1.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Firewall-System-1.png" width="30%" alt="Firewall System">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Settings-1.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Settings-1.png" width="30%" alt="Settings">
+  </a>
+
+  <a href="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Settings-2.png">
+    <img src="https://pfcentralmedia.pfcentral.cloud/PFCentralC-Settings-2.png" width="30%" alt="Settings">
   </a>
 </p>
 
@@ -206,9 +206,9 @@ The included installer automates the entire deployment process, including:
 ### Install PFCentral
 
 ```bash
-wget https://raw.githubusercontent.com/tr0uble84/pfcentral/main/install_admixcentral.sh
-chmod +x install_admixcentral.sh
-sudo ./install_admixcentral.sh
+wget https://raw.githubusercontent.com/tr0uble84/pfcentral/main/install_pfcentral.sh
+chmod +x install_pfcentral.sh
+sudo ./install_pfcentral.sh
 ```
 
 During installation, you will be prompted for:
@@ -261,8 +261,8 @@ Required PHP extensions:
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/tr0uble84/admixcentral-Jay.git admixcentral
-cd admixcentral
+git clone https://github.com/tr0uble84/pfcentral-Jay.git pfcentral
+cd pfcentral
 ```
 
 ---
@@ -292,8 +292,8 @@ APP_URL=http://your-server-ip
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=admixcentral
-DB_USERNAME=admixcentral
+DB_DATABASE=pfcentral
+DB_USERNAME=pfcentral
 DB_PASSWORD=your_password
 
 CACHE_STORE=redis
@@ -353,15 +353,15 @@ php artisan storage:link
 Create a Supervisor configuration similar to:
 
 ```ini
-[program:admix-worker]
+[program:pfcentral-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/admixcentral/artisan queue:work redis --sleep=3 --tries=3
+command=php /var/www/pfcentral/artisan queue:work redis --sleep=3 --tries=3
 autostart=true
 autorestart=true
 user=www-data
 numprocs=8
 redirect_stderr=true
-stdout_logfile=/var/www/admixcentral/storage/logs/worker.log
+stdout_logfile=/var/www/pfcentral/storage/logs/worker.log
 ```
 
 Reload Supervisor:
@@ -378,14 +378,14 @@ supervisorctl update
 Create a Supervisor configuration similar to:
 
 ```ini
-[program:admix-reverb]
-command=php /var/www/admixcentral/artisan reverb:start --host=0.0.0.0 --port=8080
-directory=/var/www/admixcentral
+[program:pfcentral-reverb]
+command=php /var/www/pfcentral/artisan reverb:start --host=0.0.0.0 --port=8080
+directory=/var/www/pfcentral
 autostart=true
 autorestart=true
 user=www-data
 redirect_stderr=true
-stdout_logfile=/var/www/admixcentral/storage/logs/reverb.log
+stdout_logfile=/var/www/pfcentral/storage/logs/reverb.log
 ```
 
 Reload Supervisor:
@@ -402,7 +402,7 @@ supervisorctl update
 Add the following cron entry:
 
 ```cron
-* * * * * php /var/www/admixcentral/artisan schedule:run >/dev/null 2>&1
+* * * * * php /var/www/pfcentral/artisan schedule:run >/dev/null 2>&1
 ```
 
 ---
@@ -423,7 +423,7 @@ Adjust the web server user as required for your distribution.
 PFCentral's built-in Let's Encrypt SSL manager requires the ability to run `certbot` and reload Nginx from the web server process. Rather than granting broad `sudo` access to those tools (which would allow arbitrary code execution via certbot's `--deploy-hook` flag), PFCentral installs narrow wrapper scripts that accept only the exact arguments needed and validate all inputs.
 
 ```bash
-sudo bash /var/www/admixcentral/scripts/setup-ssl-permissions.sh
+sudo bash /var/www/pfcentral/scripts/setup-ssl-permissions.sh
 ```
 
 This installs five wrapper scripts into `/usr/local/bin/` and creates a sudoers entry granting `www-data` access **only** to those wrappers — not to `certbot` or `nginx` directly. This step is required before the **Install Certificate** button in Settings → Site Configuration will work.
@@ -438,7 +438,7 @@ This installs five wrapper scripts into `/usr/local/bin/` and creates a sudoers 
 Set the web root to:
 
 ```text
-/var/www/admixcentral/public
+/var/www/pfcentral/public
 ```
 
 Example configuration:
@@ -448,7 +448,7 @@ server {
     listen 80;
     server_name _;
 
-    root /var/www/admixcentral/public;
+    root /var/www/pfcentral/public;
     index index.php;
 
     location / {
@@ -469,7 +469,7 @@ Restart Nginx and PHP-FPM after configuration.
 
 ## Host environment preparation
 
-For an existing deployment, run `sudo bash upgrade_admixcentral.sh --check` to assess PHP, Redis/Valkey, workers, Reverb and the scheduler. Run without `--check` for the guided host-preparation wizard. Use `--install-dir` if the deployment is outside `/var/www/admixcentral`.
+For an existing deployment, run `sudo bash upgrade_pfcentral.sh --check` to assess PHP, Redis/Valkey, workers, Reverb and the scheduler. Run without `--check` for the guided host-preparation wizard. Use `--install-dir` if the deployment is outside `/var/www/pfcentral`.
 
 The wizard supports Ubuntu, Fedora and Arch families with systemd, explains each host change, and backs up edited configuration. It preserves the built-in GitHub application updater. See the [host-readiness guide](docs/HOST_READINESS.md) for distribution details, maintenance precautions and recovery.
 
@@ -478,11 +478,11 @@ The wizard supports Ubuntu, Fedora and Arch families with systemd, explains each
 To update an existing installation:
 
 ```bash
-cd /var/www/admixcentral
+cd /var/www/pfcentral
 
 sudo git pull
 
-sudo bash upgrade_admixcentral.sh
+sudo bash upgrade_pfcentral.sh
 
 composer install --no-dev --optimize-autoloader
 
@@ -498,9 +498,9 @@ systemctl reload nginx
 ```
 
 > [!IMPORTANT]
-> `upgrade_admixcentral.sh` now automatically installs the SSL privilege wrappers (requires root). If you run the update steps without the script, run this once manually:
+> `upgrade_pfcentral.sh` now automatically installs the SSL privilege wrappers (requires root). If you run the update steps without the script, run this once manually:
 > ```bash
-> sudo bash /var/www/admixcentral/scripts/setup-ssl-permissions.sh
+> sudo bash /var/www/pfcentral/scripts/setup-ssl-permissions.sh
 > ```
 > This is a one-time step for deployments upgrading from an earlier version. It is safe to run on every update.
 

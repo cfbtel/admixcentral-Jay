@@ -3,21 +3,21 @@ set -euo pipefail
 
 ### CONFIG ###
 REPO_URL="https://github.com/tr0uble84/pfcentral.git"
-APP_DIR="/var/www/admixcentral"
+APP_DIR="/var/www/pfcentral"
 APP_USER="www-data"
 # Detect PHP version or hardcode if preferred
 PHP_VERSION="8.3"
 PHP_FPM_SOCK="/run/php/php${PHP_VERSION}-fpm.sock"
-NGINX_SITE_NAME="admixcentral"
+NGINX_SITE_NAME="pfcentral"
 
 # MySQL
-MYSQL_DB="admixcentral"
-MYSQL_USER="admixcentral"
+MYSQL_DB="pfcentral"
+MYSQL_USER="pfcentral"
 MYSQL_HOST="127.0.0.1"
 MYSQL_PORT="3306"
 
 # Where to store generated DB creds (root-readable only)
-CREDS_FILE="/root/admixcentral-mysql.txt"
+CREDS_FILE="/root/pfcentral-mysql.txt"
 ################
 
 if [ "${EUID:-$(id -u)}" -ne 0 ]; then
@@ -152,7 +152,7 @@ set_env "DB_PASSWORD" "$MYSQL_PASS" ".env"
 
 # Reverb Configuration (WebSocket)
 set_env "BROADCAST_CONNECTION" "reverb" ".env"
-set_env "REVERB_APP_ID" "admixcentral" ".env"
+set_env "REVERB_APP_ID" "pfcentral" ".env"
 set_env "REVERB_APP_KEY" "$(openssl rand -hex 16)" ".env"
 set_env "REVERB_APP_SECRET" "$(openssl rand -hex 16)" ".env"
 set_env "REVERB_HOST" "localhost" ".env"
@@ -195,10 +195,10 @@ sudo -u "$APP_USER" env HOME="$APP_DIR" npm install
 sudo -u "$APP_USER" env HOME="$APP_DIR" npm run build
 
 log "[10b/13] Configure sudoers for SSL management..."
-cat >/etc/sudoers.d/admixcentral <<EOF
+cat >/etc/sudoers.d/pfcentral <<EOF
 $APP_USER ALL=(ALL) NOPASSWD: /usr/bin/certbot, /usr/sbin/nginx, /usr/bin/systemctl reload nginx, /usr/bin/tee /etc/nginx/sites-available/$NGINX_SITE_NAME
 EOF
-chmod 0440 /etc/sudoers.d/admixcentral
+chmod 0440 /etc/sudoers.d/pfcentral
 
 log "[11/13] Nginx site config..."
 # Note: Reverb runs on 8080 by default. Nginx puts it behind /app location.
@@ -262,8 +262,8 @@ rm -f /etc/nginx/sites-enabled/default || true
 
 log "[12/13] Supervisor worker + restart services..."
 # Queue Worker
-cat >/etc/supervisor/conf.d/admix-worker.conf <<EOF
-[program:admix-worker]
+cat >/etc/supervisor/conf.d/pfcentral-worker.conf <<EOF
+[program:pfcentral-worker]
 process_name=%(program_name)s_%(process_num)02d
 command=php $APP_DIR/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 autostart=true
@@ -276,8 +276,8 @@ stopwaitsecs=3600
 EOF
 
 # Reverb Server
-cat >/etc/supervisor/conf.d/admix-reverb.conf <<EOF
-[program:admix-reverb]
+cat >/etc/supervisor/conf.d/pfcentral-reverb.conf <<EOF
+[program:pfcentral-reverb]
 command=php $APP_DIR/artisan reverb:start
 autostart=true
 autorestart=true

@@ -1089,11 +1089,11 @@
         // Fallback chain: localStorage → system default → 'cards'
         document.addEventListener('alpine:init', () => {
             Alpine.store('dashLayout', {
-                layout: localStorage.getItem('admix_dashboard_layout')
+                layout: localStorage.getItem('pfcentral_dashboard_layout')
                       || '{{ $settings["dashboard_default_layout"] ?? "cards" }}',
                 set(v) {
                     this.layout = v;
-                    localStorage.setItem('admix_dashboard_layout', v);
+                    localStorage.setItem('pfcentral_dashboard_layout', v);
                 }
             });
         });

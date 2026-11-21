@@ -55,7 +55,7 @@ class SecurityAuditRegressionTest extends TestCase
             ['disconnect', ['type' => 'p2', 'name' => $payload, 'uniqueid' => $payload], ['child', $payload, $payload]],
         ];
 
-        $directory = sys_get_temp_dir() . '/admix-ipsec-test-' . bin2hex(random_bytes(8));
+        $directory = sys_get_temp_dir() . '/pfcentral-ipsec-test-' . bin2hex(random_bytes(8));
         mkdir($directory, 0700);
         // Only stub functions execute locally. No firewall or system state is changed.
         file_put_contents($directory . '/ipsec.inc', '<?php

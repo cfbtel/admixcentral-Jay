@@ -27,7 +27,7 @@ class TestEmail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Test Email from Admix Central',
+            subject: 'Test Email from PFCentral',
         );
     }
 
@@ -39,7 +39,7 @@ class TestEmail extends Mailable
         return new Content(
             htmlString: '
                 <h1>It Works!</h1>
-                <p>This is a test email from your Admix Central system.</p>
+                <p>This is a test email from your PFCentral system.</p>
                 <p>If you are reading this, your email configuration is correct.</p>
                 <br>
                 <p>Sent at: ' . now()->toDateTimeString() . '</p>

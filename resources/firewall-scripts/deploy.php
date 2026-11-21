@@ -2,7 +2,7 @@
 /*
  * PFCentral deployment helper.
  *
- * PFCentral copies this file to the firewall (/root/.admixcentral/) through the pfSense REST API
+ * PFCentral copies this file to the firewall (/root/.pfcentral/) through the pfSense REST API
  * command prompt and runs it with pfSense's own PHP:
  *
  *   /usr/local/bin/php deploy-<hash>.php <check|apply|undo|export> [<base64 JSON> | @/tmp/acx_<name>]

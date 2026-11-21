@@ -5,7 +5,7 @@ system/version/BIOS/CPU information, usage, interfaces and traffic, gateways, ru
 and service counts, and available runtime VPN states. Existing inventory routes
 and tokens remain compatible. No firewall management or configuration writes are exposed.
 
-Base URL: **https://admixcentral.example.com/api/v1**
+Base URL: **https://pfcentral.example.com/api/v1**
 
 ## Authentication and scope
 
@@ -37,11 +37,11 @@ Examples, with the token already supplied through protected environment configur
 ```bash
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${PFCENTRAL_API_TOKEN}" \
-  'https://admixcentral.example.com/api/v1/firewalls/28/status'
+  'https://pfcentral.example.com/api/v1/firewalls/28/status'
 
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer ${PFCENTRAL_API_TOKEN}" \
-  'https://admixcentral.example.com/api/v1/firewalls/status?per_page=100&page=1'
+  'https://pfcentral.example.com/api/v1/firewalls/status?per_page=100&page=1'
 ```
 
 ## Response shape
@@ -169,11 +169,11 @@ Snapshots are retained for 24 hours; after expiration a device becomes unknown i
 no newer or dashboard snapshot exists. Staleness is evaluated at response time.
 
 ```bash
-cd /var/www/admixcentral
+cd /var/www/pfcentral
 sudo -u www-data php artisan integration:status:collect
 sudo -u www-data php artisan integration:status:collect --firewall=28 --sync
-systemctl status admixcentral-api-status.timer
-supervisorctl status 'admixcentral-api-status:*'
+systemctl status pfcentral-api-status.timer
+supervisorctl status 'pfcentral-api-status:*'
 ```
 
 The CLI --sync mode requires exactly one selected firewall. It is for operator

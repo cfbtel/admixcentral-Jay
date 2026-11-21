@@ -14,7 +14,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener, HTTPSHandler
 import ssl
 
-DEFAULT_BASE_URL = 'https://admixcentral.example.com/api/v1'
+DEFAULT_BASE_URL = 'https://pfcentral.example.com/api/v1'
 
 
 class NoRedirect(HTTPRedirectHandler):

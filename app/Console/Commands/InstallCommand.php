@@ -86,7 +86,7 @@ class InstallCommand extends Command
 
         // We use system call for 'composer run' to ensure it runs in the right environment, 
         // or we can call the artisan commands directly if we want to avoid composer dependency in production (though composer is usually there).
-        // Since we defined 'admix:finalize' in composer.json, let's try to run that, or fallback to manual artisan calls.
+        // Since we defined 'pfcentral:finalize' in composer.json, let's try to run that, or fallback to manual artisan calls.
 
         $this->call('config:clear');
         $this->call('view:clear');
@@ -116,7 +116,7 @@ class InstallCommand extends Command
     {
         $existingHost = env('DB_HOST', '127.0.0.1');
         $existingPort = env('DB_PORT', '3306');
-        $existingDb = env('DB_DATABASE', 'admixcentral');
+        $existingDb = env('DB_DATABASE', 'pfcentral');
         $existingUser = env('DB_USERNAME', 'root');
         $existingPass = env('DB_PASSWORD', '');
 
@@ -142,7 +142,7 @@ class InstallCommand extends Command
         while (!$connected) {
             $host = $this->ask('Database Host', env('DB_HOST', '127.0.0.1'));
             $port = $this->ask('Database Port', env('DB_PORT', '3306'));
-            $database = $this->ask('Database Name', env('DB_DATABASE', 'admixcentral'));
+            $database = $this->ask('Database Name', env('DB_DATABASE', 'pfcentral'));
             $username = $this->ask('Database Username', env('DB_USERNAME', 'root'));
             $password = $this->secret('Database Password (hidden)') ?: env('DB_PASSWORD', '');
 

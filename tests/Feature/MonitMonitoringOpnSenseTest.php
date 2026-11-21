@@ -85,7 +85,7 @@ class MonitMonitoringOpnSenseTest extends TestCase
                     [
                         'uuid' => 'monit-alert-1',
                         'enabled' => '1',
-                        'recipient' => 'ops@admixcentral.local',
+                        'recipient' => 'ops@pfcentral.local',
                         'description' => 'Ops notification list',
                     ],
                 ],
@@ -156,7 +156,7 @@ class MonitMonitoringOpnSenseTest extends TestCase
         $resUi->assertSee('Running');
         $resUi->assertSee('root_fs');
         $resUi->assertSee('Filesystem');
-        $resUi->assertSee('ops@admixcentral.local');
+        $resUi->assertSee('ops@pfcentral.local');
         $resUi->assertSee('SpaceUsage');
 
         // 3. PfSenseApiService / OpnSenseApiService direct calls
@@ -175,7 +175,7 @@ class MonitMonitoringOpnSenseTest extends TestCase
         $alerts = $api->getMonitAlerts();
         $this->assertEquals(200, $alerts['status']);
         $this->assertCount(1, $alerts['data']);
-        $this->assertEquals('ops@admixcentral.local', $alerts['data'][0]['recipient']);
+        $this->assertEquals('ops@pfcentral.local', $alerts['data'][0]['recipient']);
 
         $tests = $api->getMonitTests();
         $this->assertEquals(200, $tests['status']);
@@ -205,7 +205,7 @@ class MonitMonitoringOpnSenseTest extends TestCase
 
         // 7. Create Monit Alert Recipient via Web UI
         $resStoreAlert = $this->actingAs($admin)->post("/firewall/{$fw->netgate_id}/services/monit/alerts", [
-            'recipient' => 'security@admixcentral.local',
+            'recipient' => 'security@pfcentral.local',
             'description' => 'Security team',
             'enabled' => 1,
         ]);
@@ -227,7 +227,7 @@ class MonitMonitoringOpnSenseTest extends TestCase
             'enabled' => 1,
             'interval' => 60,
             'startdelay' => 30,
-            'mailserver' => 'smtp.admixcentral.local',
+            'mailserver' => 'smtp.pfcentral.local',
             'port' => 587,
         ]);
         $resSettings->assertRedirect();

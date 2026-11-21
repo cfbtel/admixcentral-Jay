@@ -412,7 +412,7 @@ class FirewallController extends Controller implements HasMiddleware
             if (str_contains($e->getMessage(), 'firewalls_netgate_id_unique')) {
                 return back()
                     ->withInput($request->except(['api_key', 'api_secret', 'api_token', 'ssh_password', 'opn_password']))
-                    ->with('error', 'This firewall is already managed by Admix Central (Duplicate Netgate ID).');
+                    ->with('error', 'This firewall is already managed by PFCentral (Duplicate Netgate ID).');
             }
             throw $e;
         }

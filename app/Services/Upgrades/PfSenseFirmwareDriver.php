@@ -16,7 +16,7 @@ use RuntimeException;
  */
 class PfSenseFirmwareDriver implements FirmwareDriver
 {
-    public const DIR = '/root/.admixcentral';
+    public const DIR = '/root/.pfcentral';
     public const LOG = self::DIR . '/upgrade.log';
 
     /** Reinstalls the REST API package for the running pfSense version (its settings and keys stay in config.xml). */

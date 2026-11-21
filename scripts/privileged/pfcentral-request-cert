@@ -1,5 +1,5 @@
 #!/bin/bash
-# /usr/local/bin/admixcentral-request-cert
+# /usr/local/bin/pfcentral-request-cert
 # ---------------------------------------------------------------------------
 # Privileged certbot wrapper for PFCentral.
 # Grants www-data the ability to request Let's Encrypt certs WITHOUT exposing
@@ -7,8 +7,8 @@
 # not possible through this interface — no arbitrary flags are accepted.
 #
 # Usage:
-#   admixcentral-request-cert <domain> <email> http
-#   admixcentral-request-cert <domain> <email> cloudflare <credentials-file>
+#   pfcentral-request-cert <domain> <email> http
+#   pfcentral-request-cert <domain> <email> cloudflare <credentials-file>
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -16,7 +16,7 @@ DOMAIN="${1:-}"
 EMAIL="${2:-}"
 METHOD="${3:-http}"
 CF_CREDS="${4:-}"
-WEBROOT="/var/www/admixcentral/public"
+WEBROOT="/var/www/pfcentral/public"
 
 # --- Input validation -------------------------------------------------------
 
@@ -33,7 +33,7 @@ fi
 if [[ "$METHOD" == "cloudflare" ]]; then
     [[ -z "$CF_CREDS" ]] && { echo "ERROR: Credentials file required" >&2; exit 1; }
     REAL_CREDS="$(realpath "$CF_CREDS" 2>/dev/null || true)"
-    ALLOWED_DIR="/var/www/admixcentral/storage/app"
+    ALLOWED_DIR="/var/www/pfcentral/storage/app"
     if [[ -z "$REAL_CREDS" ]] || [[ "${REAL_CREDS#$ALLOWED_DIR}" == "$REAL_CREDS" ]]; then
         echo "ERROR: Credentials file must be inside $ALLOWED_DIR" >&2; exit 1
     fi

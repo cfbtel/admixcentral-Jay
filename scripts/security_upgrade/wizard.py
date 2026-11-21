@@ -186,7 +186,7 @@ def redis_harden(text):
 
 def worker_config(install, php, user, count):
     return f'''{MARKER}
-[program:admix-worker]
+[program:pfcentral-worker]
 process_name=%(program_name)s_%(process_num)02d
 command={php} {install}/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 directory={install}
@@ -206,7 +206,7 @@ stdout_logfile_backups=3
 
 def reverb_config(install, php, user):
     return f'''{MARKER}
-[program:admix-reverb]
+[program:pfcentral-reverb]
 command={php} {install}/artisan reverb:start
 directory={install}
 user={user}
@@ -235,7 +235,7 @@ def atomic_write(path, data, mode, uid, gid, attrs=None):
     path = Path(path)
     if path.is_symlink():
         raise ReadinessError('Refusing to overwrite a symlink: ' + str(path))
-    fd, temporary = tempfile.mkstemp(prefix='.admix-host-', dir=path.parent)
+    fd, temporary = tempfile.mkstemp(prefix='.pfcentral-host-', dir=path.parent)
     try:
         with os.fdopen(fd, 'wb') as stream:
             stream.write(data)
@@ -429,7 +429,7 @@ class Wizard:
             paths.update(Path(path) for path in glob.glob(pattern))
             if Path(pattern).name in {'*.conf', '*.ini'} and Path(pattern).parent.is_dir() and destination is None:
                 destination = (Path(pattern).parent, Path(pattern).suffix)
-        # Include the main file so embedded Admix programs are detected and never duplicated.
+        # Include the main file so embedded PFCentral programs are detected and never duplicated.
         return main, [main] + sorted(paths), destination
 
     def programs(self, name):
@@ -557,24 +557,24 @@ class Wizard:
                 if not re.search(r'^\s*appendonly\s+yes\b', text, re.M):
                     self.issue('Redis/Valkey AOF persistence is not enabled: review durability before storing queues/sessions there.')
         main, _, _ = self.supervisor()
-        for name in ['admix-worker', 'admix-reverb']:
+        for name in ['pfcentral-worker', 'pfcentral-reverb']:
             _, path, _ = self.programs(name)
             if not path:
-                alternatives = self.alternate_services('queue:' if name == 'admix-worker' else 'reverb:start')
+                alternatives = self.alternate_services('queue:' if name == 'pfcentral-worker' else 'reverb:start')
                 self.issue(('Review existing alternative service: ' + ', '.join(alternatives)) if alternatives else 'Supervisor program missing: ' + name)
                 continue
             config = read_ini(path.read_text())['program:' + name]
             if config.get('user') != self.user:
                 self.issue(name + ' does not use the selected FPM runtime user.')
-            if name == 'admix-worker':
+            if name == 'pfcentral-worker':
                 parts = shlex.split(config.get('command', ''))
                 if 'queue:work' in parts:
                     tail = parts[parts.index('queue:work') + 1:]
                     if tail and not tail[0].startswith('-') and tail[0] != self.report.get('queue'):
                         self.issue('Worker has an explicit queue connection different from QUEUE_CONNECTION; verify producers and consumers before changing either.')
-            if name == 'admix-reverb' and config.get('numprocs', '1') != '1':
+            if name == 'pfcentral-reverb' and config.get('numprocs', '1') != '1':
                 self.issue('Reverb must have one process per listening port.')
-            if name == 'admix-reverb' and ('--host=0.0.0.0' in config.get('command', '') or ('--host' not in config.get('command', '') and not self.report.get('reverb_loopback', False))):
+            if name == 'pfcentral-reverb' and ('--host=0.0.0.0' in config.get('command', '') or ('--host' not in config.get('command', '') and not self.report.get('reverb_loopback', False))):
                 self.issue('Reverb listens on all IPv4 interfaces; use loopback when the reverse proxy is local.')
             if shutil.which('supervisorctl', path=SAFE_PATH):
                 status = self.run.run(['supervisorctl', '-c', str(main), 'status', name + ':*'], check=False)
@@ -599,11 +599,11 @@ class Wizard:
         return not self.issues
 
     def legacy_sudoers(self):
-        path = Path('/etc/sudoers.d/admixcentral')
+        path = Path('/etc/sudoers.d/pfcentral')
         return path.is_file() and any(line.strip() and not line.lstrip().startswith('#') for line in path.read_text().splitlines())
 
     def start_backups(self):
-        base = Path('/var/backups/admixcentral-host')
+        base = Path('/var/backups/pfcentral-host')
         if base.is_symlink():
             raise ReadinessError('Backup directory must not be a symlink.')
         base.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -655,11 +655,11 @@ class Wizard:
         shared = [name for name in wanted if (Path(directory) / (name + '.so')).is_file()]
         if not shared:
             return
-        path = Path('/etc/php/conf.d/99-admixcentral.ini')
+        path = Path('/etc/php/conf.d/99-pfcentral.ini')
         if path.exists() and MARKER not in path.read_text():
-            raise ReadinessError('Custom 99-admixcentral.ini exists; enable missing PHP extensions manually.')
+            raise ReadinessError('Custom 99-pfcentral.ini exists; enable missing PHP extensions manually.')
         say('\nArch ships some extensions disabled. Available missing modules: ' + ', '.join(shared))
-        if confirm('Enable these modules in /etc/php/conf.d/99-admixcentral.ini?'):
+        if confirm('Enable these modules in /etc/php/conf.d/99-pfcentral.ini?'):
             existing = path.read_text() if path.exists() else MARKER + '\n'
             content = existing + ''.join('extension=' + name + '\n' for name in shared)
             def validate():
@@ -731,10 +731,10 @@ class Wizard:
                 self.run.run(['systemctl', 'enable', '--now', service])
             else:
                 return
-        for name in ['admix-worker', 'admix-reverb']:
+        for name in ['pfcentral-worker', 'pfcentral-reverb']:
             main, path, destination = self.programs(name)
             if not path:
-                alternate = self.alternate_services('queue:' if name == 'admix-worker' else 'reverb:start')
+                alternate = self.alternate_services('queue:' if name == 'pfcentral-worker' else 'reverb:start')
                 if alternate:
                     say('Existing alternative service(s) preserved; no duplicate program created: ' + ', '.join(alternate))
                     continue
@@ -749,25 +749,25 @@ class Wizard:
                 command = config['program:' + name].get('command', '')
                 parts = shlex.split(command)
                 if len(parts) < 3 or parts[1] != str(self.install / 'artisan') or parts[2] != (
-                        'queue:work' if name == 'admix-worker' else 'reverb:start'):
+                        'queue:work' if name == 'pfcentral-worker' else 'reverb:start'):
                     say('Custom command or different installation for ' + name + '; edit manually.')
                     continue
             say('\n' + name + ': use PHP ' + self.version + ' as ' + self.user + '. Changes restart this program; running jobs may need time to finish.')
-            if name == 'admix-worker':
+            if name == 'pfcentral-worker':
                 say('Existing connection/queue arguments are preserved. A new worker uses the current QUEUE_CONNECTION. No jobs are moved.')
             else:
                 say('Reverb gets one process to avoid port conflicts. The existing host/port arguments are preserved unless you explicitly select loopback.')
             if not confirm('Prepare or adjust ' + name + '?'):
                 continue
             count = 1
-            if name == 'admix-worker':
+            if name == 'pfcentral-worker':
                 default = config['program:' + name].get('numprocs', '2') if path else '2'
                 count = int(ask('Worker count (1–32; choose for available RAM and firewall load)', default))
                 if not 1 <= count <= 32:
                     raise ReadinessError('Worker count must be between 1 and 32.')
             if path:
                 parts[0] = self.php
-                if name == 'admix-reverb' and confirm('Is the reverse proxy on this host, and should Reverb bind only to 127.0.0.1?'):
+                if name == 'pfcentral-reverb' and confirm('Is the reverse proxy on this host, and should Reverb bind only to 127.0.0.1?'):
                     filtered, skip = [], False
                     for part in parts:
                         if skip:
@@ -781,17 +781,17 @@ class Wizard:
                     raise ReadinessError('Complex Supervisor command arguments require manual editing.')
                 updates = {'command': ' '.join(parts), 'user': self.user, 'directory': str(self.install),
                            'numprocs': str(count), 'stopasgroup': 'true', 'killasgroup': 'true',
-                           'stopwaitsecs': '3600' if name == 'admix-worker' else '60'}
-                updates['process_name'] = '%(program_name)s_%(process_num)02d' if name == 'admix-worker' else '%(program_name)s'
-                if name == 'admix-worker':
+                           'stopwaitsecs': '3600' if name == 'pfcentral-worker' else '60'}
+                updates['process_name'] = '%(program_name)s_%(process_num)02d' if name == 'pfcentral-worker' else '%(program_name)s'
+                if name == 'pfcentral-worker':
                     updates['stdout_logfile'] = str(self.install / 'storage/logs/worker-%(process_num)02d.log')
                 content = update_ini(path.read_text(), 'program:' + name, updates)
             else:
                 path = destination[0] / (name + destination[1])
                 if path.exists():
                     raise ReadinessError('Unrelated configuration occupies ' + str(path))
-                content = worker_config(self.install, self.php, self.user, count) if name == 'admix-worker' else reverb_config(self.install, self.php, self.user)
-                if name == 'admix-reverb' and confirm('Is the reverse proxy local, and should the new Reverb service bind to 127.0.0.1?'):
+                content = worker_config(self.install, self.php, self.user, count) if name == 'pfcentral-worker' else reverb_config(self.install, self.php, self.user)
+                if name == 'pfcentral-reverb' and confirm('Is the reverse proxy local, and should the new Reverb service bind to 127.0.0.1?'):
                     content = content.replace('artisan reverb:start', 'artisan reverb:start --host=127.0.0.1')
             ctl = ['supervisorctl', '-c', str(main)]
             def validate():
@@ -823,8 +823,8 @@ class Wizard:
         if not service:
             say('cron/cronie is missing. Install it or use your existing systemd timer.')
             return
-        if confirm('Install /etc/cron.d/admixcentral and enable the cron service?'):
-            path = Path('/etc/cron.d/admixcentral')
+        if confirm('Install /etc/cron.d/pfcentral and enable the cron service?'):
+            path = Path('/etc/cron.d/pfcentral')
             if path.exists():
                 raise ReadinessError('An unrelated cron file already uses this name; edit it manually.')
             self.backups.change(path, cron_config(self.install, self.php, self.user), lambda: None,
@@ -883,7 +883,7 @@ class Wizard:
                     self.reload_fpm()
                 self.backups.change(self.install / '.env', update_env((self.install / '.env').read_text(), updates),
                                     lambda: None, activate, recover=recover)
-        path = Path('/etc/sudoers.d/admixcentral')
+        path = Path('/etc/sudoers.d/pfcentral')
         if self.legacy_sudoers():
             say('\nLegacy PFCentral sudo rules permit web-triggered root configuration writes and can turn an application compromise into host compromise.')
             say('Removing this drop-in disables web SSL installation and host performance-tuning actions that depend on sudo. Manage those as an OS administrator.')
@@ -922,7 +922,7 @@ class Wizard:
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', '--dry-run', action='store_true', help='Read-only readiness report; no configuration changes or service actions (exit 2 means attention needed).')
-    parser.add_argument('--install-dir', default=os.environ.get('INSTALL_DIR', '/var/www/admixcentral'))
+    parser.add_argument('--install-dir', default=os.environ.get('INSTALL_DIR', '/var/www/pfcentral'))
     parser.add_argument('--runtime-user', help='Non-root PHP-FPM pool user (otherwise detected from the pool).')
     parser.add_argument('--php-version', default=os.environ.get('PHP_VER', ''), help='Select an installed versioned PHP CLI, e.g. 8.3 on Ubuntu; no repository is added.')
     parser.add_argument('--php-bin', help='Explicit PHP CLI binary for a custom installation.')

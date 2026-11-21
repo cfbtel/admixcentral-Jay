@@ -1,12 +1,12 @@
 # PFCentral security audit — 9 September 2026
 
-Repository: `/home/baga/Code/admixcentral`  
+Repository: PFCentral  
 Starting revision: `8b85fe57620b640ba7d73973d58006088f9cbfe1`  
 Status: source fixes applied locally; deployment and infrastructure remediation remain.
 
 The review found an authenticated command-injection path to managed pfSense firewalls, authorization gaps, credential disclosures, browser injection, and missing transport authentication. The confirmed application issues described below have been patched. This is **not a clean bill of health for a deployment**: the privileged installer configuration and unsigned updater remain material risks, with remediation methods below. A source review cannot establish that no exploitable defects exist.
 
-Native pfSense/OPNsense certificates remain supported. PFCentral can explicitly trust each firewall's HTTPS public key; a public CA is unnecessary. See the [deployment and certificate guide](/home/baga/Code/admixcentral/docs/SECURITY_DEPLOYMENT.md).
+Native pfSense/OPNsense certificates remain supported. PFCentral can explicitly trust each firewall's HTTPS public key; a public CA is unnecessary. See the [deployment and certificate guide](docs/SECURITY_DEPLOYMENT.md).
 
 ## Scope and evidence
 
@@ -14,7 +14,7 @@ Repository-wide searches covered application code, routes, middleware, policies,
 
 Tests ran in isolated copies with a synthetic application key, SQLite in memory, fake mail/queues and synthetic credentials. Harmless local command probes used stub functions; no exploit command was sent to a firewall. TLS behavior was exercised against an ephemeral HTTPS listener on 127.0.0.1. This was not a live network penetration test or a review of deployed firewall firmware. During baseline testing, some existing incomplete HTTP mocks permitted real requests toward their hardcoded private fixture addresses. The patch makes unexpected Laravel HTTP requests fail during tests and repairs those mocks; the final suite is isolated.
 
-Evidence directory: [security-audits/admixcentral-2026-09-09](/home/baga/VMs/security-audits/admixcentral-2026-09-09). Evidence contains synthetic probes, not production credentials.
+Evidence directory: [security-audits/pfcentral-2026-09-09](security-audits/pfcentral-2026-09-09). Evidence contains synthetic probes, not production credentials.
 
 ## Findings patched in source
 
@@ -37,7 +37,7 @@ Transport failures in OPNsense pooled requests now become catchable exceptions i
 
 ### R01 — Privileged web-service sudo rights (high; root escalation after a web-process compromise)
 
-Affected source includes [install_admixcentral.sh](/home/baga/Code/admixcentral/install_admixcentral.sh:899), [upgrade_admixcentral.sh](/home/baga/Code/admixcentral/upgrade_admixcentral.sh:275), [scripts/install.sh](/home/baga/Code/admixcentral/scripts/install.sh:197), and [scripts/setup-ssl-permissions.sh](/home/baga/Code/admixcentral/scripts/setup-ssl-permissions.sh:17).
+Affected source includes [install_pfcentral.sh](install_pfcentral.sh:899), [upgrade_pfcentral.sh](upgrade_pfcentral.sh:275), [scripts/install.sh](scripts/install.sh:197), and [scripts/setup-ssl-permissions.sh](scripts/setup-ssl-permissions.sh:17).
 
 These grant the web runtime broad `certbot`/`nginx` execution and/or the ability to replace supervisor and PHP-FPM configuration followed by service reloads. Restricting the destination filename does not make attacker-controlled configuration safe. Certbot explicitly supports shell hooks; broad root access to it is a root execution capability. See [Certbot hook documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#renewing-certificates).
 
@@ -47,7 +47,7 @@ These grant the web runtime broad `certbot`/`nginx` execution and/or the ability
 
 ### R02 — Unsigned self-update installation (high supply-chain risk)
 
-[SystemInstallUpdate.php](/home/baga/Code/admixcentral/app/Console/Commands/SystemInstallUpdate.php:108) explicitly skips verification, downloads a GitHub tag source archive, overlays application files and then runs migrations. Release signing in [.github/workflows/release.yml](/home/baga/Code/admixcentral/.github/workflows/release.yml:67) is commented out. HTTPS to GitHub does not authenticate the release against an independently managed signing key. Exploitation requires control of the consumed release source or equivalent update input; no unauthenticated update-trigger bypass was demonstrated.
+[SystemInstallUpdate.php](app/Console/Commands/SystemInstallUpdate.php:108) explicitly skips verification, downloads a GitHub tag source archive, overlays application files and then runs migrations. Release signing in [.github/workflows/release.yml](.github/workflows/release.yml:67) is commented out. HTTPS to GitHub does not authenticate the release against an independently managed signing key. Exploitation requires control of the consumed release source or equivalent update input; no unauthenticated update-trigger bypass was demonstrated.
 
 **Immediate deployment method:** block `/system/settings/updates/install` at the reverse proxy and stop using `php artisan system:install-update` (including `--force`). Deploy reviewed commits through a separate deployment account. For nginx, add `location = /system/settings/updates/install { return 403; }` inside the central HTTPS server, then validate/reload nginx as an operator. This is a containment method, not an implementation of signed updates.
 
@@ -81,9 +81,9 @@ The authenticated route group does not currently use Laravel's `auth.session` mi
 
 ## Validation results
 
-- Full patched suite: **117 tests, 813 assertions, zero failures/errors**, two PHP deprecation notices. The original suite had six failures; fixture/stale-assertion fixes are included. See [full-suite-final.txt](/home/baga/VMs/security-audits/admixcentral-2026-09-09/full-suite-final.txt).
+- Full patched suite: **117 tests, 813 assertions, zero failures/errors**, two PHP deprecation notices. The original suite had six failures; fixture/stale-assertion fixes are included. See [full-suite-final.txt](security-audits/pfcentral-2026-09-09/full-suite-final.txt).
 - Added 33 regression cases covering shell/PHP argument preservation, role/tenant boundaries, secret rendering, URL validation, SSH identity checks, trust enrollment, certificate transport, safe error handling, email origin and plaintext redirect configuration.
-- Actual local HTTPS experiment: trusted self-signed key accepted by IP; wrong key rejected with cURL error 90; unpinned invalid certificate rejected; redirect returned without following it; plaintext connection options rejected. Only the correct-key and redirect-source listeners received the synthetic authorization header. See [TLS results](/home/baga/VMs/security-audits/admixcentral-2026-09-09/tls-transport-results.json).
+- Actual local HTTPS experiment: trusted self-signed key accepted by IP; wrong key rejected with cURL error 90; unpinned invalid certificate rejected; redirect returned without following it; plaintext connection options rejected. Only the correct-key and redirect-source listeners received the synthetic authorization header. See [TLS results](security-audits/pfcentral-2026-09-09/tls-transport-results.json).
 - Composer locked dependency audit: zero published advisories returned; npm locked dependency audit: zero published advisories returned, including development dependencies. This is a point-in-time result and does not cover undisclosed vulnerabilities or deployed system packages/firmware.
 - Blade compilation and Vite build passed. PHP syntax and whitespace checks are recorded with the evidence.
 

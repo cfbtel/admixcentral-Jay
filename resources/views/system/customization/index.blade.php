@@ -282,7 +282,7 @@
 
                                 init() {
                                     // Check if we are already installing
-                                    if (localStorage.getItem('admix_update_active')) {
+                                    if (localStorage.getItem('pfcentral_update_active')) {
                                         this.installing = true;
                                         this.updateAvailable = false;
                                         this.message = 'Update in progress...';
@@ -1334,7 +1334,7 @@
                                             <p class="font-semibold mb-1">Server setup required before SSL can be installed</p>
                                             <p class="text-xs mb-2">The SSL privilege wrappers are not installed. This is a one-time server step that requires root access — it cannot be done automatically by the app. SSH into your server and run:</p>
                                             <code class="block text-xs font-mono bg-amber-100 dark:bg-amber-900/50 rounded px-2 py-1.5 select-all break-all">
-                                                sudo bash /var/www/admixcentral/scripts/setup-ssl-permissions.sh
+                                                sudo bash /var/www/pfcentral/scripts/setup-ssl-permissions.sh
                                             </code>
                                             <p class="text-xs mt-2 text-amber-700 dark:text-amber-400">After running the command, close and re-open this dialog to continue.</p>
                                         </div>

@@ -27,16 +27,17 @@ fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 WRAPPERS_SRC="$SCRIPT_DIR/privileged"
+APP_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 WRAPPERS_DEST="/usr/local/bin"
-SUDOERS_FILE="/etc/sudoers.d/admixcentral"
+SUDOERS_FILE="/etc/sudoers.d/pfcentral"
 APP_USER="www-data"
 
 WRAPPER_NAMES=(
-    admixcentral-request-cert
-    admixcentral-cert-delete
-    admixcentral-nginx-config-write
-    admixcentral-nginx-test
-    admixcentral-nginx-reload
+    pfcentral-request-cert
+    pfcentral-cert-delete
+    pfcentral-nginx-config-write
+    pfcentral-nginx-test
+    pfcentral-nginx-reload
 )
 
 echo "==> Installing privilege wrapper scripts..."
@@ -47,6 +48,8 @@ for name in "${WRAPPER_NAMES[@]}"; do
         echo "ERROR: Missing wrapper: $src" >&2; exit 1
     fi
     install -o root -g root -m 0755 "$src" "$dest"
+    # The wrappers only allow paths inside this installation.
+    sed -i "s#/var/www/pfcentral#${APP_DIR}#g" "$dest"
     echo "    Installed: $dest"
 done
 

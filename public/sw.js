@@ -1,4 +1,4 @@
-const CACHE_NAME = 'admix-central-v2';
+const CACHE_NAME = 'pfcentral-v2';
 const urlsToCache = [
     '/',
     '/images/logo.png',

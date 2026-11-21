@@ -32,7 +32,7 @@ jobs:
       DB_CONNECTION: mysql
       DB_HOST: 127.0.0.1
       DB_PORT: '3306'
-      DB_DATABASE: admix_test
+      DB_DATABASE: pfcentral_test
       DB_USERNAME: root
       DB_PASSWORD: root
       CACHE_STORE: array
@@ -85,7 +85,7 @@ jobs:
         if: steps.v.outputs.exists == 'false'
         run: |
           sudo systemctl start mysql.service
-          mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE admix_test'
+          mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE pfcentral_test'
           composer install --no-scripts --no-plugins --no-interaction --prefer-dist --no-progress
           php artisan package:discover --no-ansi
           vendor/bin/phpunit tests/Feature/VpnModuleTest.php tests/Feature/MandrillMailTest.php tests/Feature/SystemSettingsPortTest.php

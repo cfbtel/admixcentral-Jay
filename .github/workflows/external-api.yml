@@ -16,7 +16,7 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_DATABASE: admixcentral_api_ci
+          MYSQL_DATABASE: pfcentral_api_ci
           MYSQL_ROOT_PASSWORD: ci-test-password
         ports:
           - 3306:3306
@@ -33,7 +33,7 @@ jobs:
       DB_CONNECTION: mysql
       DB_HOST: 127.0.0.1
       DB_PORT: 3306
-      DB_DATABASE: admixcentral_api_ci
+      DB_DATABASE: pfcentral_api_ci
       DB_USERNAME: root
       DB_PASSWORD: ci-test-password
       CACHE_STORE: array

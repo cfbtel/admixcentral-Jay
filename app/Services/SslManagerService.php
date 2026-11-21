@@ -8,8 +8,8 @@ use App\Services\SystemConfigurationService;
 
 class SslManagerService
 {
-    protected $nginxConfigPath = 'app/admixcentral.nginx.conf'; // Relative to storage/
-    protected $systemConfigPath = '/etc/nginx/sites-available/admixcentral';
+    protected $nginxConfigPath = 'app/pfcentral.nginx.conf'; // Relative to storage/
+    protected $systemConfigPath = '/etc/nginx/sites-available/pfcentral';
 
 
     public function __construct(
@@ -80,7 +80,7 @@ class SslManagerService
         // The wrapper hardcodes all certbot flags and accepts NO hook arguments,
         // preventing --deploy-hook injection if the web app is ever compromised.
         $result = Process::run(
-            ['sudo', '/usr/local/bin/admixcentral-request-cert', $domain, $email, 'http']
+            ['sudo', \App\Support\LegacyInstall::helper('request-cert'), $domain, $email, 'http']
         );
 
         if ($result->failed()) {
@@ -100,7 +100,7 @@ class SslManagerService
             // The wrapper validates that the credentials file is inside storage/app/
             // and hardcodes all other certbot arguments.
             $result = Process::run(
-                ['sudo', '/usr/local/bin/admixcentral-request-cert', $domain, $email, 'cloudflare', $credPath]
+                ['sudo', \App\Support\LegacyInstall::helper('request-cert'), $domain, $email, 'cloudflare', $credPath]
             );
 
             if ($result->failed()) {
@@ -117,7 +117,7 @@ class SslManagerService
     public function deleteCertificate(string $domain): void
     {
         $result = Process::run(
-            ['sudo', '/usr/local/bin/admixcentral-cert-delete', $domain]
+            ['sudo', \App\Support\LegacyInstall::helper('cert-delete'), $domain]
         );
 
         if ($result->failed()) {
@@ -141,19 +141,19 @@ class SslManagerService
     {
         // Write to system path via wrapper (hardcoded destination — no path injection possible)
         $source = storage_path($this->nginxConfigPath);
-        $write = Process::run("cat " . escapeshellarg($source) . " | sudo /usr/local/bin/admixcentral-nginx-config-write");
+        $write = Process::run("cat " . escapeshellarg($source) . " | sudo " . \App\Support\LegacyInstall::helper('nginx-config-write'));
         if ($write->failed()) {
             throw new \Exception("Failed to write Nginx config: " . $write->errorOutput());
         }
 
         // Test config via wrapper (no arguments accepted — cannot load arbitrary config)
-        $test = Process::run(['sudo', '/usr/local/bin/admixcentral-nginx-test']);
+        $test = Process::run(['sudo', \App\Support\LegacyInstall::helper('nginx-test')]);
         if ($test->failed()) {
             throw new \Exception("Nginx config test failed: " . $test->errorOutput());
         }
 
         // Reload via wrapper (no arguments — only reloads nginx, cannot stop/restart)
-        $reload = Process::run(['sudo', '/usr/local/bin/admixcentral-nginx-reload']);
+        $reload = Process::run(['sudo', \App\Support\LegacyInstall::helper('nginx-reload')]);
         if ($reload->failed()) {
             throw new \Exception("Failed to reload Nginx: " . $reload->errorOutput());
         }
@@ -193,12 +193,13 @@ class SslManagerService
 
     protected function getNginxSslStub(string $domain): string
     {
+        $publicPath = base_path('public');
         return <<<NGINX
 server {
     listen 80;
     listen [::]:80;
     server_name {$domain};
-    root /var/www/admixcentral/public;
+    root {$publicPath};
 
     location ^~ /.well-known/acme-challenge/ {
         default_type text/plain;
@@ -216,7 +217,7 @@ server {
 
     server_name {$domain};
 
-    root /var/www/admixcentral/public;
+    root {$publicPath};
 
     ssl_certificate /etc/letsencrypt/live/{$domain}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/{$domain}/privkey.pem;
@@ -273,13 +274,14 @@ NGINX;
 
     protected function getNginxHttpStub(string $domain): string
     {
+        $publicPath = base_path('public');
         return <<<NGINX
 server {
     listen 80;
     listen [::]:80;
     server_name _;
 
-    root /var/www/admixcentral/public;
+    root {$publicPath};
 
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-Content-Type-Options "nosniff";

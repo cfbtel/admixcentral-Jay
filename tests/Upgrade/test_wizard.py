@@ -64,12 +64,12 @@ class ConfigurationTests(unittest.TestCase):
             w.update_env('DB_PASSWORD="unterminated\nAPP_DEBUG=true\n', {'APP_DEBUG': 'false'})
 
     def test_ini_preserves_queue_routing_and_other_sections(self):
-        source = '[program:admix-worker]\ncommand=/usr/bin/php /var/www/admixcentral/artisan queue:work database --queue=urgent,default\nnumprocs=8\n[other]\nnumprocs=7\n'
-        updated = w.update_ini(source, 'program:admix-worker', {'numprocs': '2', 'user': 'apache'})
+        source = '[program:pfcentral-worker]\ncommand=/usr/bin/php /var/www/pfcentral/artisan queue:work database --queue=urgent,default\nnumprocs=8\n[other]\nnumprocs=7\n'
+        updated = w.update_ini(source, 'program:pfcentral-worker', {'numprocs': '2', 'user': 'apache'})
         self.assertIn('queue:work database --queue=urgent,default', updated)
         self.assertEqual(w.read_ini(updated)['other']['numprocs'], '7')
-        self.assertEqual(w.read_ini(updated)['program:admix-worker']['user'], 'apache')
-        self.assertEqual(updated, w.update_ini(updated, 'program:admix-worker', {'numprocs': '2', 'user': 'apache'}))
+        self.assertEqual(w.read_ini(updated)['program:pfcentral-worker']['user'], 'apache')
+        self.assertEqual(updated, w.update_ini(updated, 'program:pfcentral-worker', {'numprocs': '2', 'user': 'apache'}))
 
     def test_pool_user_comes_from_config_and_rejects_ambiguous_users(self):
         self.assertEqual(w.pool_user('[www]\nuser=www-data\n'), 'www-data')
@@ -79,9 +79,9 @@ class ConfigurationTests(unittest.TestCase):
             w.pool_user('[one]\nuser=apache\n[two]\nuser=another\n')
 
     def test_redis_auth_and_persistence_are_preserved(self):
-        source = 'bind 0.0.0.0\nprotected-mode no\nrequirepass "secret#&"\nuser admix on >secret ~* +@all\nappendonly no\nsave 60 10\nmaxmemory 256mb\nmaxmemory-policy allkeys-lru\n'
+        source = 'bind 0.0.0.0\nprotected-mode no\nrequirepass "secret#&"\nuser pfcentral on >secret ~* +@all\nappendonly no\nsave 60 10\nmaxmemory 256mb\nmaxmemory-policy allkeys-lru\n'
         new = w.redis_harden(source)
-        for line in ['requirepass "secret#&"', 'user admix on >secret ~* +@all', 'appendonly no', 'save 60 10', 'maxmemory 256mb']:
+        for line in ['requirepass "secret#&"', 'user pfcentral on >secret ~* +@all', 'appendonly no', 'save 60 10', 'maxmemory 256mb']:
             self.assertIn(line, new)
         self.assertIn('bind 127.0.0.1 -::1', new)
         self.assertIn('maxmemory-policy noeviction', new)
@@ -92,14 +92,14 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_new_services_use_nonroot_user_and_current_queue_connection(self):
         for user in ['www-data', 'apache', 'http']:
-            worker = w.read_ini(w.worker_config('/var/www/admixcentral', '/usr/bin/php', user, 3))['program:admix-worker']
+            worker = w.read_ini(w.worker_config('/var/www/pfcentral', '/usr/bin/php', user, 3))['program:pfcentral-worker']
             self.assertEqual(worker['user'], user)
             self.assertNotIn('queue:work redis', worker['command'])
             self.assertIn('%(process_num)02d', worker['stdout_logfile'])
-            reverb = w.read_ini(w.reverb_config('/var/www/admixcentral', '/usr/bin/php', user))['program:admix-reverb']
+            reverb = w.read_ini(w.reverb_config('/var/www/pfcentral', '/usr/bin/php', user))['program:pfcentral-reverb']
             self.assertEqual(reverb['numprocs'], '1')
             self.assertNotIn('--host=', reverb['command'])
-            self.assertIn(user + ' cd /var/www/admixcentral && /usr/bin/php artisan schedule:run', w.cron_config('/var/www/admixcentral', '/usr/bin/php', user))
+            self.assertIn(user + ' cd /var/www/pfcentral && /usr/bin/php artisan schedule:run', w.cron_config('/var/www/pfcentral', '/usr/bin/php', user))
 
     def test_rejects_paths_that_inject_supervisor_cron_or_shell_syntax(self):
         for path in ['/tmp/a;id', '/tmp/a%id', '/tmp/a b', '/tmp/a\nroot', '/tmp/a/../b', '/tmp/$(id)']:
@@ -207,7 +207,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_existing_scheduler_does_not_add_cron(self):
         wizard = object.__new__(w.Wizard)
-        wizard.scheduler_entries = Mock(return_value=['/etc/systemd/system/admix-schedule.service'])
+        wizard.scheduler_entries = Mock(return_value=['/etc/systemd/system/pfcentral-schedule.service'])
         wizard.backups = Mock()
         with redirect_stdout(io.StringIO()), patch.object(w, 'confirm', side_effect=AssertionError('should not prompt')):
             wizard.scheduler_step()
@@ -226,7 +226,7 @@ class WorkflowTests(unittest.TestCase):
         wizard.service = lambda _: 'supervisord.service'
         wizard.active = lambda _: True
         wizard.programs = lambda _: (Path('/etc/supervisord.conf'), None, (Path('/etc/supervisor.d'), '.ini'))
-        wizard.alternate_services = lambda action: ['/etc/systemd/system/admix-' + action + '.service']
+        wizard.alternate_services = lambda action: ['/etc/systemd/system/pfcentral-' + action + '.service']
         wizard.backups = Mock()
         with redirect_stdout(io.StringIO()), patch.object(w, 'confirm', side_effect=AssertionError('no duplicate prompt')):
             wizard.supervisor_step()
@@ -242,13 +242,13 @@ class WorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             worker, reverb, main = [base / name for name in ['worker.ini', 'reverb.ini', 'supervisord.conf']]
-            worker.write_text(w.worker_config('/var/www/admixcentral', '/usr/bin/php', 'http', 8).replace('queue:work --', 'queue:work redis --queue=urgent,default --'))
-            reverb.write_text(w.reverb_config('/var/www/admixcentral', '/usr/bin/php', 'http').replace('reverb:start', 'reverb:start --host=0.0.0.0 --port=9001').replace('numprocs=1', 'numprocs=3'))
+            worker.write_text(w.worker_config('/var/www/pfcentral', '/usr/bin/php', 'http', 8).replace('queue:work --', 'queue:work redis --queue=urgent,default --'))
+            reverb.write_text(w.reverb_config('/var/www/pfcentral', '/usr/bin/php', 'http').replace('reverb:start', 'reverb:start --host=0.0.0.0 --port=9001').replace('numprocs=1', 'numprocs=3'))
             wizard = object.__new__(w.Wizard)
-            wizard.php, wizard.version, wizard.user, wizard.install = '/usr/bin/php', '8.5', 'http', Path('/var/www/admixcentral')
+            wizard.php, wizard.version, wizard.user, wizard.install = '/usr/bin/php', '8.5', 'http', Path('/var/www/pfcentral')
             wizard.service = lambda _: 'supervisord.service'
             wizard.active = lambda _: True
-            wizard.programs = lambda name: (main, worker if name == 'admix-worker' else reverb, (base, '.ini'))
+            wizard.programs = lambda name: (main, worker if name == 'pfcentral-worker' else reverb, (base, '.ini'))
             wizard.backups = Mock()
             with redirect_stdout(io.StringIO()), patch.object(w, 'confirm', side_effect=[True, True, True]), patch.object(w, 'ask', return_value='2'):
                 wizard.supervisor_step()

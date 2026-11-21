@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — v0.19.0
+- The code now uses the PFCentral name everywhere: install and upgrade scripts (`install_pfcentral.sh`,
+  `upgrade_pfcentral.sh`), helper scripts (`/usr/local/bin/pfcentral-*`), background services (`pfcentral-worker`,
+  `pfcentral-reverb`), the firewall helper folder (`/root/.pfcentral`), settings, logs and documentation.
+- New installations go to `/var/www/pfcentral` by default.
+- Existing installations keep working with no changes: their install folder, database, background services, SSL
+  helper scripts and older system backups are still recognised.
+- The firewall helper scripts are uploaded again to each firewall's new folder the next time they are needed.
+
 ### Changed — v0.18.1
 - The PFCentral name is used throughout the pages, emails, messages, documentation and installer text.
 - New README, NOTICE, contribution guide (CONTRIBUTING.md), security policy (SECURITY.md) and pull request and issue
@@ -134,7 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reports: most blocked addresses, domains, devices and feeds, recent IP and DNSBL events with a filter, and a
     Whitelist button for blocked domains. Logs: every pfBlockerNG log file.
   - Read-only users can see everything but change nothing. OPNsense firewalls show "not supported".
-  - How it works: pfBlockerNG has no API, so PFCentral copies a small helper script to `/root/.admixcentral/` on
+  - How it works: pfBlockerNG has no API, so PFCentral copies a small helper script to `/root/.pfcentral/` on
     the firewall through the REST API command prompt (in pieces, because commands are limited to 1024 characters)
     and runs it with pfSense's PHP. It edits the same config.xml sections as the pfBlockerNG pages, so everything
     stays visible in pfSense.

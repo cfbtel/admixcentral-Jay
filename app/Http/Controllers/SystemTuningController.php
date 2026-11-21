@@ -36,7 +36,7 @@ class SystemTuningController extends Controller
             $ramMb = (int) ($m[1] / 1024);
         }
 
-        $currentWorkers  = $this->readNumprocs('admix-worker');
+        $currentWorkers  = $this->readNumprocs('pfcentral-worker');
         $currentChildren = $this->readFpmChildren();
 
         $recWorkers  = max(8, min(16, $cpuCores * 2));
@@ -104,6 +104,17 @@ class SystemTuningController extends Controller
 
     protected function readNumprocs(string $name): int
     {
+        // Servers installed before the rename use the earlier program names.
+        if (preg_match('/^pfcentral-(worker|reverb)$/', $name, $m)) {
+            foreach (\App\Support\LegacyInstall::supervisorNames($m[1]) as $n) {
+                foreach ($this->supervisorDirs as $dir) {
+                    if (file_exists("{$dir}/{$n}.conf") || file_exists("{$dir}/{$n}.ini")) {
+                        $name = $n;
+                        break 2;
+                    }
+                }
+            }
+        }
         foreach ($this->supervisorDirs as $dir) {
             foreach (["{$dir}/{$name}.conf", "{$dir}/{$name}.ini"] as $path) {
                 if (!file_exists($path)) continue;

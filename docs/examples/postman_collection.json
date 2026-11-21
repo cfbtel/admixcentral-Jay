@@ -17,7 +17,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://admixcentral.example.com/api/v1"
+      "value": "https://pfcentral.example.com/api/v1"
     },
     {
       "key": "token",

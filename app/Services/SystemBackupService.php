@@ -257,7 +257,7 @@ class SystemBackupService
         $iv = random_bytes(12); // Standard GCM 96-bit nonce
         $key = hash_pbkdf2("sha256", $password, $salt, 100000, 32, true);
         $tag = '';
-        $aad = 'admixcentral-backup-v2';
+        $aad = 'pfcentral-backup-v2';
 
         $encrypted = openssl_encrypt($data, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, $aad, 16);
         if ($encrypted === false) {
@@ -285,10 +285,15 @@ class SystemBackupService
             $iv = substr($raw, 21, 12);
             $tag = substr($raw, 33, 16);
             $ciphertext = substr($raw, 49);
-            $aad = 'admixcentral-backup-v2';
-
             $key = hash_pbkdf2("sha256", $password, $salt, 100000, 32, true);
-            $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, $aad);
+            // Backups made before the rename use the earlier label.
+            $decrypted = false;
+            foreach (['pfcentral-backup-v2', \App\Support\LegacyInstall::backupLabel()] as $aad) {
+                $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, $aad);
+                if ($decrypted !== false) {
+                    break;
+                }
+            }
 
             if ($decrypted === false) {
                 throw new \Exception("Decryption failed. Authentication tag mismatch, incorrect password, or corrupted file.");

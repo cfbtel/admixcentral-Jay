@@ -1,6 +1,6 @@
 # Deploying the security patches and trusting native firewall certificates
 
-The security changes are in the local source tree. They have not been deployed, and neither the real database nor managed firewalls were modified. Review the [audit and remaining remediation work](/home/baga/Code/admixcentral/docs/SECURITY_AUDIT_2026-09-09.md) before production rollout.
+The security changes are in the local source tree. They have not been deployed, and neither the real database nor managed firewalls were modified. Review the [audit and remaining remediation work](/home/baga/Code/pfcentral/docs/SECURITY_AUDIT_2026-09-09.md) before production rollout.
 
 ## Native self-signed HTTPS certificates
 
@@ -30,7 +30,7 @@ The PHP runtime serving web requests **and** queue workers must have cURL with p
 If certificates have correct names/IP subject alternatives and valid chains, you can use their private CA in the normal verification mode. Install a PEM CA bundle readable by the runtime and set:
 
 ```dotenv
-FIREWALL_CA_BUNDLE=/etc/admixcentral/firewall-ca-bundle.pem
+FIREWALL_CA_BUNDLE=/etc/pfcentral/firewall-ca-bundle.pem
 ```
 
 The bundle should contain all CA roots needed for unpinned firewall connections, including public roots if those are also used. It replaces the default CA file for these clients. Rebuild the configuration cache and restart workers after changing this setting. This option still checks hostname and expiry, and it allows certificate/key renewal under the trusted CA without per-key enrollment. Uploading a CA certificate into the **per-firewall server-certificate** field is not equivalent: that field pins the uploaded certificate's own public key.

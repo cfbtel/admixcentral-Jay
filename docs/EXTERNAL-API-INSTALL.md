@@ -32,12 +32,12 @@ Before updating an existing installation:
 
 ## Dependencies and token table
 
-The following example assumes `/var/www/admixcentral` is owned by `www-data`.
+The following example assumes `/var/www/pfcentral` is owned by `www-data`.
 Replace those values for your installation. These are application-owner commands;
 get or update the source before running them.
 
 ```bash
-cd /var/www/admixcentral
+cd /var/www/pfcentral
 sudo -u www-data composer install --no-dev --no-scripts --no-plugins --no-interaction --prefer-dist
 sudo -u www-data php artisan package:discover
 sudo -u www-data php artisan migrate --path=database/migrations/2026_10_24_000001_create_personal_access_tokens_table.php --force
@@ -113,14 +113,14 @@ Schedule this command once a minute as the application user, using your existing
 process manager, systemd timer or cron. Do not install multiple schedules:
 
 ```bash
-cd /var/www/admixcentral
+cd /var/www/pfcentral
 sudo -u www-data php artisan integration:status:collect
 ```
 
 For example, the application's user's crontab can contain:
 
 ```cron
-* * * * * cd /var/www/admixcentral && /usr/bin/php artisan integration:status:collect >/dev/null 2>&1
+* * * * * cd /var/www/pfcentral && /usr/bin/php artisan integration:status:collect >/dev/null 2>&1
 ```
 
 An operator can collect exactly one selected firewall synchronously for diagnostics:
@@ -141,7 +141,7 @@ can take longer than one minute; measure age/queue depth and adjust worker capac
 
 ## Consumer contract
 
-Base path is `https://admixcentral.example.com/api/v1` (reserved example hostname).
+Base path is `https://pfcentral.example.com/api/v1` (reserved example hostname).
 Supply `Authorization: Bearer <token>` separately through protected configuration.
 
 | GET path | Purpose |

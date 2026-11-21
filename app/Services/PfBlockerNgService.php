@@ -23,7 +23,7 @@ class PfBlockerNgService
     public const PACKAGE = 'pfSense-pkg-pfBlockerNG-devel';
 
     protected const MARK = 'ACXPFB:';
-    protected const DIR = '/root/.admixcentral';
+    protected const DIR = '/root/.pfcentral';
     protected const CHUNK = 900;
     protected const PHP = '/usr/local/bin/php';
 

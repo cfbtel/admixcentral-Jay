@@ -50,7 +50,7 @@ class SystemRetune extends Command
         $recWorkers  = max(8, min(16, $cpuCores * 2));
         $recChildren = max(10, min(40, (int) ($ramMb / 50)));
 
-        $workerConf = $this->findSupervisorConf('admix-worker');
+        $workerConf = $this->findSupervisorConf('pfcentral-worker');
         $fpmConf    = $this->findFpmPoolConf();
 
         $this->result = [
@@ -103,9 +103,13 @@ class SystemRetune extends Command
 
     protected function findSupervisorConf(string $name): ?string
     {
-        foreach ($this->supervisorDirs as $dir) {
-            foreach (["{$dir}/{$name}.conf", "{$dir}/{$name}.ini"] as $path) {
-                if (file_exists($path)) return $path;
+        // Servers installed before the rename use the earlier program names.
+        $names = preg_match('/^pfcentral-(worker|reverb)$/', $name, $m) ? \App\Support\LegacyInstall::supervisorNames($m[1]) : [$name];
+        foreach ($names as $n) {
+            foreach ($this->supervisorDirs as $dir) {
+                foreach (["{$dir}/{$n}.conf", "{$dir}/{$n}.ini"] as $path) {
+                    if (file_exists($path)) return $path;
+                }
             }
         }
         return null;
@@ -154,7 +158,7 @@ class SystemRetune extends Command
 
     protected function writeFile(string $path, string $content): bool
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'admix_tune_');
+        $tmp = tempnam(sys_get_temp_dir(), 'pfcentral_tune_');
         file_put_contents($tmp, $content);
 
         $output  = [];
@@ -195,7 +199,7 @@ class SystemRetune extends Command
     protected function tuneWorkers(?string $confPath, int $recommended): void
     {
         if (!$confPath) {
-            $this->result['errors'][] = 'admix-worker supervisor config not found';
+            $this->result['errors'][] = 'pfcentral-worker supervisor config not found';
             return;
         }
 
@@ -229,8 +233,8 @@ class SystemRetune extends Command
         // Add process_name if missing (Supervisor requires it when numprocs > 1)
         if (!preg_match('/^process_name\s*=/m', $content)) {
             $content = preg_replace(
-                '/^\[program:admix-reverb\]/m',
-                "[program:admix-reverb]\nprocess_name=%(program_name)s_%(process_num)02d",
+                '/^\[program:(' . implode('|', array_map('preg_quote', \App\Support\LegacyInstall::supervisorNames('reverb'))) . ')\]/m',
+                "[program:$1]\nprocess_name=%(program_name)s_%(process_num)02d",
                 $content
             );
         }
@@ -282,8 +286,11 @@ class SystemRetune extends Command
         // Supervisor reloads are safe synchronously — they don't kill the current PHP-FPM worker
         shell_exec('sudo supervisorctl reread 2>&1');
         shell_exec('sudo supervisorctl update 2>&1');
-        shell_exec('sudo supervisorctl restart admix-worker:* 2>&1');
-        shell_exec('sudo supervisorctl restart admix-reverb:* 2>&1');
+        foreach (['worker', 'reverb'] as $role) {
+            foreach (\App\Support\LegacyInstall::supervisorNames($role) as $program) {
+                shell_exec('sudo supervisorctl restart ' . escapeshellarg($program . ':*') . ' 2>&1');
+            }
+        }
 
         // PHP-FPM restart MUST be backgrounded with a delay.
         // Restarting it synchronously kills the current FPM worker mid-request,

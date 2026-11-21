@@ -57,7 +57,7 @@ HTTP token-creation endpoint. The user's browser password and 2FA remain unchang
 Tokens are independent machine credentials and must be protected accordingly.
 
 ```bash
-cd /var/www/admixcentral
+cd /var/www/pfcentral
 sudo -u www-data php artisan integration:token:issue --user=USER_ID --company=COMPANY_ID --name=INTEGRATION_NAME --days=30
 ```
 

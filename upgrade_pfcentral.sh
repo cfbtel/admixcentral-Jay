@@ -10,7 +10,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 # This ensures new columns (e.g. tls_public_key_pin, ssh_host_key_fingerprint)
 # are applied automatically whenever the upgrade script is executed.
 # ---------------------------------------------------------------------------
-APP_DIR="${INSTALL_DIR:-/var/www/admixcentral}"
+APP_DIR="${INSTALL_DIR:-/var/www/pfcentral}"
 PHP_BIN="${PHP_BIN:-$(command -v php 2>/dev/null || true)}"
 
 if [ -z "$PHP_BIN" ]; then

@@ -1,6 +1,6 @@
 # PFCentral host preparation and readiness
 
-`upgrade_admixcentral.sh` now prepares the **host environment of an existing installation**. The application’s built-in GitHub release updater continues to handle application code. This wizard does not download releases, run Composer/npm, build assets, run migrations, change application ownership, or move application data.
+`upgrade_pfcentral.sh` now prepares the **host environment of an existing installation**. The application’s built-in GitHub release updater continues to handle application code. This wizard does not download releases, run Composer/npm, build assets, run migrations, change application ownership, or move application data.
 
 It offers explained, individually selectable steps for PHP extensions, Redis/Valkey, Supervisor workers, Reverb, cron, PHP-FPM and environment hardening. Every change prompt defaults to **No**. Use a maintenance window: package installation and selected service changes can briefly interrupt requests and background work.
 
@@ -8,7 +8,7 @@ It offers explained, individually selectable steps for PHP extensions, Redis/Val
 
 Keep these three files together in their repository layout:
 
-- `upgrade_admixcentral.sh`
+- `upgrade_pfcentral.sh`
 - `scripts/security_upgrade/wizard.py`
 - `scripts/security_upgrade/probe.php`
 
@@ -16,10 +16,10 @@ Run a reviewed copy of the script on the live host. The script itself should com
 
 ```bash
 # Read-only readiness report first; adjust the deployment path if needed.
-sudo bash upgrade_admixcentral.sh --check --install-dir /var/www/admixcentral
+sudo bash upgrade_pfcentral.sh --check --install-dir /var/www/pfcentral
 
 # Guided preparation. Each proposed change is explained before you select it.
-sudo bash upgrade_admixcentral.sh --install-dir /var/www/admixcentral
+sudo bash upgrade_pfcentral.sh --install-dir /var/www/pfcentral
 ```
 
 `--dry-run` is an alias for `--check`. The check does not install packages, edit configuration, clear Laravel configuration or restart services. It reads configuration and sends Redis PINGs using the existing application settings; authentication/connection activity may appear in normal service logs. It does not boot application service providers or contact managed firewalls. Root gives the most complete report; without root, unreadable host configuration or inability to assume the application runtime user can stop the check.
@@ -29,13 +29,13 @@ Exit codes: **0** means the implemented checks found no outstanding items, **2**
 For custom PHP/FPM layouts:
 
 ```bash
-sudo bash upgrade_admixcentral.sh \
-  --install-dir /srv/admixcentral \
+sudo bash upgrade_pfcentral.sh \
+  --install-dir /srv/pfcentral \
   --php-bin /usr/bin/php8.3 \
   --fpm-bin /usr/sbin/php-fpm8.3 \
   --fpm-service php8.3-fpm.service \
-  --fpm-pool /etc/php/8.3/fpm/pool.d/admixcentral.conf \
-  --runtime-user admixcentral
+  --fpm-pool /etc/php/8.3/fpm/pool.d/pfcentral.conf \
+  --runtime-user pfcentral
 ```
 
 `INSTALL_DIR` and `PHP_VER` environment overrides remain available, although explicit options avoid sudo environment filtering. `--php-version 8.3` selects an **already installed** versioned CLI on Ubuntu. The runtime user is detected from the FPM pool, never from the owner of `artisan`; it must be non-root. Paths embedded in service configuration must not contain whitespace or shell/configuration metacharacters.
@@ -54,7 +54,7 @@ User and service values are discovered, not assumed from this table. Existing Re
 
 PHP 8.2+ within PHP 8 and Python 3.9+ are required. The installed application’s Composer lock file may require a newer PHP version; the read-only PHP probe also checks whether its dependencies can load. On Ubuntu releases with older default PHP, upgrade PHP/the OS through an administrator-approved source first. The wizard does not add a PPA, change Fedora module streams, download PECL builds, or enable third-party repositories.
 
-On Arch, complete the normal full system upgrade (`pacman -Syu`) before preparation if the host is behind. The wizard uses `pacman -S --needed` and never performs a partial `pacman -Sy` upgrade. Available but disabled PHP shared extensions can be enabled in a dedicated `99-admixcentral.ini`; CLI and FPM are validated afterward. See the [Arch PHP Redis package layout](https://archlinux.org/packages/extra/x86_64/php-redis/files/).
+On Arch, complete the normal full system upgrade (`pacman -Syu`) before preparation if the host is behind. The wizard uses `pacman -S --needed` and never performs a partial `pacman -Sy` upgrade. Available but disabled PHP shared extensions can be enabled in a dedicated `99-pfcentral.ini`; CLI and FPM are validated afterward. See the [Arch PHP Redis package layout](https://archlinux.org/packages/extra/x86_64/php-redis/files/).
 
 Fedora Atomic/immutable hosts require their own image/layering workflow and reboot. Automatic package installation stops on an rpm-ostree boot. Containers and non-systemd distributions need service configuration in their container/orchestration layer instead of this wizard. Third-party PHP stacks need the explicit FPM options and administrator-managed matching extension packages.
 
@@ -81,19 +81,19 @@ Shared, remote, replicated, clustered and TLS instances need administrator-speci
 
 ## Workers, Reverb and scheduler
 
-The wizard discovers Supervisor’s actual include glob, including `.conf` and `.ini` layouts. It only updates the selected Admix program group; it does not restart all Supervisor programs. It preserves existing connection, named-queue and Reverb port arguments. Reverb uses one process per listening port, and binding it to loopback is offered only when the operator confirms the reverse proxy is local.
+The wizard discovers Supervisor’s actual include glob, including `.conf` and `.ini` layouts. It only updates the selected PFCentral program group; it does not restart all Supervisor programs. It preserves existing connection, named-queue and Reverb port arguments. Reverb uses one process per listening port, and binding it to loopback is offered only when the operator confirms the reverse proxy is local.
 
 New workers use the configured queue connection. Worker count is selected explicitly (default two for a new program), and PHP-FPM sizing remains unchanged unless the operator supplies a measured limit. The script does not automatically allocate most of the host RAM to PHP.
 
 Existing possible systemd worker services and scheduler cron/timer definitions are preserved for review instead of adding duplicates. Shared/custom Supervisor files are left for manual editing. The discovery is conservative and may identify another Laravel application’s service; verify its target path. User timers and custom wrapper scripts may require manual inspection. A scheduler definition alone does not prove the scheduler is healthy: verify recent scheduled jobs and service logs.
 
-For a new scheduler, the wizard creates `/etc/cron.d/admixcentral` with the detected non-root user, absolute PHP binary and application working directory, then enables cron/crond. Scheduler output remains suppressed as in the original installer; inspect Laravel logs for failures.
+For a new scheduler, the wizard creates `/etc/cron.d/pfcentral` with the detected non-root user, absolute PHP binary and application working directory, then enables cron/crond. Scheduler output remains suppressed as in the original installer; inspect Laravel logs for failures.
 
 ## Host security and firewall certificates
 
 The optional environment step can disable debug output, enable secure-only cookies after you confirm working public HTTPS, and enable encrypted sessions after explaining the sign-out effect. It clears **only** Laravel configuration and requests graceful queue/Reverb restarts as the runtime user. It does not run `config:cache`, because this application currently has direct `env()` reads outside configuration files. Canonical HTTPS URLs and reverse-proxy/TLS configuration remain an operator responsibility.
 
-The legacy `/etc/sudoers.d/admixcentral` file can grant the web user root configuration writes. The wizard offers to remove that file’s grants after explaining the effect: web-triggered certificate installation and host tuning may stop working and should then be done by an OS administrator. It validates sudoers syntax before keeping the edit. Other sudoers files/groups may still grant privileges and need review. The GitHub updater and application code ownership are unchanged.
+The legacy `/etc/sudoers.d/pfcentral` file can grant the web user root configuration writes. The wizard offers to remove that file’s grants after explaining the effect: web-triggered certificate installation and host tuning may stop working and should then be done by an OS administrator. It validates sudoers syntax before keeping the edit. Other sudoers files/groups may still grant privileges and need review. The GitHub updater and application code ownership are unchanged.
 
 Check permissions without making the whole application root-owned: the built-in updater needs its existing deployment write access. Restrict `.env` to the deployment owner and required runtime group, normally mode `0640` or `0600` when the runtime user owns it. Give the selected runtime user write access to `storage/` and `bootstrap/cache/`; avoid world-writable permissions. The wizard reports access problems rather than recursively changing ownership.
 
@@ -105,7 +105,7 @@ Keep database and Redis listeners private; expose Reverb directly only if that i
 
 ## Backups, failures and recovery
 
-Interactive changes create a root-only directory under `/var/backups/admixcentral-host/`. An exclusive lock prevents overlapping runs. For each edited file, numbered metadata records its original path, existence, ownership and mode; the corresponding `.original` contains the prior contents. Backup copies and action logs are private and may include secrets; do not publish them.
+Interactive changes create a root-only directory under `/var/backups/pfcentral-host/`. An exclusive lock prevents overlapping runs. For each edited file, numbered metadata records its original path, existence, ownership and mode; the corresponding `.original` contains the prior contents. Backup copies and action logs are private and may include secrets; do not publish them.
 
 Files are replaced atomically, retaining existing extended attributes (including SELinux labels). On validation or activation failure, the affected file is restored and service recovery is attempted. Environment changes also snapshot cached Laravel configuration for recovery. Failure or interruption leaves earlier completed steps in place and returns a nonzero exit status. Package installation, data already processed by workers and session invalidation cannot be rolled back by restoring a config file. Service enablement is not automatically undone.
 
@@ -114,7 +114,7 @@ For manual recovery, read the numbered JSON metadata to identify the matching or
 ## Validation performed in this repository
 
 ```bash
-bash -n upgrade_admixcentral.sh
+bash -n upgrade_pfcentral.sh
 php -l scripts/security_upgrade/probe.php
 python3 -B -m unittest discover -s tests/Upgrade -v
 ```

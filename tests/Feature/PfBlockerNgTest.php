@@ -109,7 +109,7 @@ class PfBlockerNgTest extends TestCase
                 $this->assertSame(PfBlockerNgService::script(), $script, 'the helper arrives on the firewall intact');
                 $this->bridgeOnFirewall = true;
                 $out = 'ACXOK';
-            } elseif (preg_match("#^/usr/local/bin/php /root/\\.admixcentral/pfbng-[0-9a-f]{12}\\.php '([a-z_]+)'(?: (\\S+))?$#", $cmd, $m)) {
+            } elseif (preg_match("#^/usr/local/bin/php /root/\\.pfcentral/pfbng-[0-9a-f]{12}\\.php '([a-z_]+)'(?: (\\S+))?$#", $cmd, $m)) {
                 $raw = $m[2] ?? '';
                 if (str_starts_with($raw, '@')) {
                     $raw = $files[substr($raw, 1)] ?? '';

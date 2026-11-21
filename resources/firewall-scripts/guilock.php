@@ -1,6 +1,6 @@
 <?php
 /*
- * PFCentral web interface lock (System → Security), copied to the firewall (/root/.admixcentral/) like the
+ * PFCentral web interface lock (System → Security), copied to the firewall (/root/.pfcentral/) like the
  * pfBlockerNG helper and run with the PHP CLI of pfSense:
  *
  *   /usr/local/bin/php guilock-<hash>.php <action> [<base64 JSON arguments> | @/tmp/acx_<name>]
@@ -15,7 +15,7 @@ error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', '0');
 
 const GL_MARK = 'ACXGL:';
-const GL_DIR = '/root/.admixcentral';
+const GL_DIR = '/root/.pfcentral';
 const GL_PENDING = GL_DIR . '/guilock-pending';
 const GL_ALIAS = 'PFCentral_GUI';
 const GL_TAG = 'PFCentral web interface lock';

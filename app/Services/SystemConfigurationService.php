@@ -147,7 +147,7 @@ class SystemConfigurationService
             return false;
         }
 
-        $nginxPath = storage_path('app/admixcentral.nginx.conf');
+        $nginxPath = storage_path('app/pfcentral.nginx.conf');
 
         if (!file_exists($nginxPath)) {
             Log::warning('SystemConfigurationService: Nginx config file not found at ' . $nginxPath);

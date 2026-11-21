@@ -139,11 +139,11 @@ class SystemSslController extends Controller
         // They are installed by setup-ssl-permissions.sh (requires root) and cannot
         // be set up by the in-app updater (which runs as www-data).
         $wrappers = [
-            '/usr/local/bin/admixcentral-request-cert',
-            '/usr/local/bin/admixcentral-cert-delete',
-            '/usr/local/bin/admixcentral-nginx-config-write',
-            '/usr/local/bin/admixcentral-nginx-test',
-            '/usr/local/bin/admixcentral-nginx-reload',
+            \App\Support\LegacyInstall::helper('request-cert'),
+            \App\Support\LegacyInstall::helper('cert-delete'),
+            \App\Support\LegacyInstall::helper('nginx-config-write'),
+            \App\Support\LegacyInstall::helper('nginx-test'),
+            \App\Support\LegacyInstall::helper('nginx-reload'),
         ];
         $wrappersInstalled = collect($wrappers)->every(fn($w) => is_executable($w));
 

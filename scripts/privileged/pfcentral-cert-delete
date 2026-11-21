@@ -1,5 +1,5 @@
 #!/bin/bash
-# /usr/local/bin/admixcentral-cert-delete
+# /usr/local/bin/pfcentral-cert-delete
 # Deletes a Let's Encrypt certificate by domain name.
 # Accepts ONLY a validated domain — no other certbot flags.
 set -euo pipefail

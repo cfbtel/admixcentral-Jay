@@ -48,7 +48,7 @@
     <script>
         const protocol = window.location.protocol;
         const isSecure = protocol === 'https:';
-        window.AdmixConfig = {
+        window.PFCentralConfig = {
             reverb: {
                 key: "{{ env('VITE_REVERB_APP_KEY') }}",
                 host: window.location.hostname,
@@ -704,12 +704,12 @@
 
                 init() {
                     // Check session storage first
-                    if (sessionStorage.getItem('admix_update_remind_later')) {
+                    if (sessionStorage.getItem('pfcentral_update_remind_later')) {
                         this.dismissedSession = true;
                     }
 
                     // Check for active installation first
-                    if (localStorage.getItem('admix_update_active')) {
+                    if (localStorage.getItem('pfcentral_update_active')) {
                         this.isInstalling = true;
                         this.startPolling(); // Poll for installation status
                     } else {
@@ -770,7 +770,7 @@
                         })
                         .then(data => {
                             console.log('Update started', data);
-                            localStorage.setItem('admix_update_active', 'true');
+                            localStorage.setItem('pfcentral_update_active', 'true');
                             window.dispatchEvent(new CustomEvent('system-update-started'));
                             this.startPolling();
                         })
@@ -836,7 +836,7 @@
                                 });
                         } else if (result.isDenied) {
                             // Remind Me Later: Set session storage
-                            sessionStorage.setItem('admix_update_remind_later', 'true');
+                            sessionStorage.setItem('pfcentral_update_remind_later', 'true');
                             this.dismissedSession = true;
 
                             Swal.fire({
@@ -890,7 +890,7 @@
                         })
                         .then(data => {
                             console.log('Update started', data);
-                            localStorage.setItem('admix_update_active', 'true');
+                            localStorage.setItem('pfcentral_update_active', 'true');
                             window.dispatchEvent(new CustomEvent('system-update-started'));
                             this.startPolling();
                         })
@@ -955,7 +955,7 @@
                             // Don't clear localStorage here; let reloadPage handle it
                         } else if (data.status === 'failed' || data.status === 'idle') {
                             clearInterval(this.pollInterval);
-                            localStorage.removeItem('admix_update_active');
+                            localStorage.removeItem('pfcentral_update_active');
                             this.isInstalling = false;
                             this.updateComplete = false;
 
@@ -982,7 +982,7 @@
                 },
 
                 reloadPage() {
-                    localStorage.removeItem('admix_update_active');
+                    localStorage.removeItem('pfcentral_update_active');
                     window.location.reload();
                 }
             }

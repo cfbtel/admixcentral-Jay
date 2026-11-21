@@ -1,6 +1,6 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "admixcentral/admixcentral",
+    "name": "tr0uble84/pfcentral",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
     "keywords": [
@@ -69,7 +69,7 @@
         "post-create-project-cmd": [
             "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\""
         ],
-        "admix:finalize": [
+        "pfcentral:finalize": [
             "@php artisan package:discover --ansi",
             "@php artisan config:clear",
             "@php artisan view:clear",

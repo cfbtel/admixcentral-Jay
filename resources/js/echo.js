@@ -11,10 +11,10 @@ import Pusher from 'pusher-js';
 // Make Pusher available globally for Echo
 window.Pusher = Pusher;
 
-const reverbKey = window.AdmixConfig?.reverb?.key || import.meta.env.VITE_REVERB_APP_KEY;
-const reverbHost = window.AdmixConfig?.reverb?.host || import.meta.env.VITE_REVERB_HOST;
-const reverbPort = window.AdmixConfig?.reverb?.port || import.meta.env.VITE_REVERB_PORT || 8080;
-const reverbScheme = window.AdmixConfig?.reverb?.scheme || import.meta.env.VITE_REVERB_SCHEME || 'https';
+const reverbKey = window.PFCentralConfig?.reverb?.key || import.meta.env.VITE_REVERB_APP_KEY;
+const reverbHost = window.PFCentralConfig?.reverb?.host || import.meta.env.VITE_REVERB_HOST;
+const reverbPort = window.PFCentralConfig?.reverb?.port || import.meta.env.VITE_REVERB_PORT || 8080;
+const reverbScheme = window.PFCentralConfig?.reverb?.scheme || import.meta.env.VITE_REVERB_SCHEME || 'https';
 
 if (reverbKey) {
     // Initialize Echo with Reverb configuration

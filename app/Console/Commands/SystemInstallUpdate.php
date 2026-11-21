@@ -45,7 +45,7 @@ class SystemInstallUpdate extends Command
             $rootDir = dirname($this->releasesDir);
         } else {
             // Fallback for Dev/Flat structure
-            // Structure: /root/admixcentral (where releases/ is sibling)
+            // Structure: /root/pfcentral (where releases/ is sibling)
             $rootDir = dirname($base);
             $this->releasesDir = $rootDir . '/releases';
         }
@@ -85,7 +85,7 @@ class SystemInstallUpdate extends Command
 
             // Construct URLs
             // Use the repository from config or default
-            $repo = config('services.github.repository', 'admxlz/admixcentral');
+            $repo = config('services.github.repository', 'tr0uble84/pfcentral');
 
 
             // Use GitHub Source Code Zipball URL
@@ -218,7 +218,7 @@ class SystemInstallUpdate extends Command
                     throw new \Exception(
                         "Failed to copy file: {$dstPath}" .
                         ($err ? ' — ' . $err['message'] : '') .
-                        "\n\nFix: run 'sudo chown -R www-data:www-data /var/www/admixcentral' on the server."
+                        "\n\nFix: run 'sudo chown -R www-data:www-data /var/www/pfcentral' on the server."
                     );
                 }
             }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-LOG_FILE="/root/admixcentral_install_allinone.log"
+LOG_FILE="/root/pfcentral_install_allinone.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 trap 'echo; echo "[X] FAILED at line $LINENO. See '"$LOG_FILE"'"; exit 1' ERR
 
@@ -12,7 +12,7 @@ die(){ echo -e "\n[X] $*\n"; exit 1; }
 
 # This installer contains interactive prompts. Do not run through curl | bash,
 # CI, or any wrapper that does not provide a real terminal.
-[[ -r /dev/tty && -w /dev/tty ]] || die "This installer requires a real interactive terminal. Download it first, then run: sudo bash install_admixcentral.sh"
+[[ -r /dev/tty && -w /dev/tty ]] || die "This installer requires a real interactive terminal. Download it first, then run: sudo bash install_pfcentral.sh"
 
 # ---------------- CONFIG (override via env) ----------------
 # Capture an explicit PHP_VER before the original non-Ubuntu default is applied.
@@ -21,17 +21,17 @@ UBUNTU_PHP_REQUEST="${PHP_VER:-auto}"
 PHP_VER="${PHP_VER:-8.4}"
 NODE_MAJOR="${NODE_MAJOR:-20}"
 
-REPO_URL="${REPO_URL:-https://github.com/tr0uble84/admixcentral-Jay.git}"
-INSTALL_DIR="${INSTALL_DIR:-/var/www/admixcentral}"
+REPO_URL="${REPO_URL:-https://github.com/tr0uble84/pfcentral-Jay.git}"
+INSTALL_DIR="${INSTALL_DIR:-/var/www/pfcentral}"
 WEB_USER="${WEB_USER:-www-data}"
 WEB_GROUP="${WEB_GROUP:-www-data}"
 
-DB_NAME="${DB_NAME:-admixcentral}"
+DB_NAME="${DB_NAME:-pfcentral}"
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3306}"
 
 # If you export these, script will not prompt:
-DB_USER="${DB_USER:-admixcentral}"
+DB_USER="${DB_USER:-pfcentral}"
 DB_PASS="${DB_PASS:-}"
 # -----------------------------------------------------------
 
@@ -573,7 +573,7 @@ configure_nginx_site() {
   local php_sock
   php_sock="$(detect_php_fpm_sock)"
 
-  cat >"${nginx_sites_avail}/admixcentral.conf" <<EOF
+  cat >"${nginx_sites_avail}/pfcentral.conf" <<EOF
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
@@ -620,7 +620,7 @@ server {
 EOF
 
   if [[ "$nginx_sites_avail" != "$nginx_sites_en" ]]; then
-    ln -sf "${nginx_sites_avail}/admixcentral.conf" "${nginx_sites_en}/admixcentral.conf" || true
+    ln -sf "${nginx_sites_avail}/pfcentral.conf" "${nginx_sites_en}/pfcentral.conf" || true
   fi
 
   nginx -t || die "Nginx config test failed"
@@ -806,7 +806,7 @@ provision_cron() {
   log "Provisioning Laravel scheduler cron"
 
   local cron_line="* * * * * ${RUNTIME_WEB_USER} php ${INSTALL_DIR}/artisan schedule:run >> /dev/null 2>&1"
-  local cron_file="/etc/cron.d/admixcentral"
+  local cron_file="/etc/cron.d/pfcentral"
   local cron_dir="/etc/cron.d"
 
   # Only create if missing (handles Arch clean installs)
@@ -966,7 +966,7 @@ main() {
   set_env_kv .env "DB_PASSWORD" "$DB_PASS"
 
   log "Writing Reverb settings into .env"
-  local reverb_app_id="admixcentral"
+  local reverb_app_id="pfcentral"
   local reverb_app_key="$(openssl rand -hex 16)"
   local reverb_app_secret="$(openssl rand -hex 16)"
 
@@ -1057,27 +1057,27 @@ main() {
   local certbot_bin
   certbot_bin="$(command -v certbot || echo /usr/bin/certbot)"
 
-  cat >/etc/sudoers.d/admixcentral <<EOF
+  cat >/etc/sudoers.d/pfcentral <<EOF
 # SSL / Nginx
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/certbot, ${certbot_bin}, /usr/sbin/nginx, /usr/bin/nginx, /usr/bin/systemctl reload nginx, /usr/bin/tee /etc/nginx/sites-available/admixcentral, /usr/bin/tee /etc/nginx/conf.d/admixcentral.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/certbot, ${certbot_bin}, /usr/sbin/nginx, /usr/bin/nginx, /usr/bin/systemctl reload nginx, /usr/bin/tee /etc/nginx/sites-available/pfcentral, /usr/bin/tee /etc/nginx/conf.d/pfcentral.conf
 # Performance Tuning — supervisor config writes
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor/conf.d/admix-worker.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor/conf.d/admix-worker.ini
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor/conf.d/admix-reverb.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor/conf.d/admix-reverb.ini
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisord.d/admix-worker.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisord.d/admix-reverb.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor.d/admix-worker.ini
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor.d/admix-reverb.ini
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor.d/admix-worker.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/supervisor.d/admix-reverb.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor/conf.d/pfcentral-worker.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor/conf.d/pfcentral-worker.ini
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor/conf.d/pfcentral-reverb.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor/conf.d/pfcentral-reverb.ini
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisord.d/pfcentral-worker.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisord.d/pfcentral-reverb.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor.d/pfcentral-worker.ini
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor.d/pfcentral-reverb.ini
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor.d/pfcentral-worker.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/supervisor.d/pfcentral-reverb.conf
 # Performance Tuning — FPM pool config writes
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/php/8.3/fpm/pool.d/www.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/php/8.2/fpm/pool.d/www.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/php-fpm.d/www.conf
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/php/php-fpm.d/www.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/php/8.3/fpm/pool.d/www.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/php/8.2/fpm/pool.d/www.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/php-fpm.d/www.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/php/php-fpm.d/www.conf
 # Performance Tuning — service restarts
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl reread, /usr/bin/supervisorctl update, /usr/bin/supervisorctl restart admix-worker:*, /usr/bin/supervisorctl restart admix-reverb:*
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl reread, /usr/bin/supervisorctl update, /usr/bin/supervisorctl restart pfcentral-worker:*, /usr/bin/supervisorctl restart pfcentral-reverb:*
 ${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php8.3-fpm
 ${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php8.2-fpm
 ${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php8.1-fpm
@@ -1088,9 +1088,9 @@ EOF
   # Ubuntu: permit the app's existing performance-tuning actions for the
   # selected PHP series, rather than only the original 8.2/8.3 paths.
   if [[ "${ID:-}" == "ubuntu" ]]; then
-    cat >>/etc/sudoers.d/admixcentral <<EOF
+    cat >>/etc/sudoers.d/pfcentral <<EOF
 # Ubuntu selected PHP runtime
-${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/admix_tune_* /etc/php/${PHP_VER}/fpm/pool.d/www.conf
+${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/pfcentral_tune_* /etc/php/${PHP_VER}/fpm/pool.d/www.conf
 ${RUNTIME_WEB_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart ${PHP_SERVICE}
 EOF
   fi
@@ -1098,13 +1098,13 @@ EOF
   # If RUNTIME_WEB_USER is not www-data, also add www-data explicitly —
   # PHP-FPM pool often runs as www-data regardless of the detected install user.
   if [[ "${RUNTIME_WEB_USER}" != "www-data" ]] && id www-data >/dev/null 2>&1; then
-    cat >>/etc/sudoers.d/admixcentral <<EOF
+    cat >>/etc/sudoers.d/pfcentral <<EOF
 # SSL / Nginx (www-data — PHP-FPM pool user)
-www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot, ${certbot_bin}, /usr/sbin/nginx, /usr/bin/systemctl reload nginx, /usr/bin/tee /etc/nginx/sites-available/admixcentral, /usr/bin/tee /etc/nginx/conf.d/admixcentral.conf
+www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot, ${certbot_bin}, /usr/sbin/nginx, /usr/bin/systemctl reload nginx, /usr/bin/tee /etc/nginx/sites-available/pfcentral, /usr/bin/tee /etc/nginx/conf.d/pfcentral.conf
 EOF
   fi
 
-  chmod 0440 /etc/sudoers.d/admixcentral || true
+  chmod 0440 /etc/sudoers.d/pfcentral || true
 
   configure_nginx_site
 
@@ -1121,7 +1121,7 @@ EOF
 
   mkdir -p "$supv_conf_dir"
 
-  rm -f "${supv_conf_dir}/admix-worker.ini" "${supv_conf_dir}/admix-worker.conf"         "${supv_conf_dir}/admix-reverb.ini" "${supv_conf_dir}/admix-reverb.conf" || true
+  rm -f "${supv_conf_dir}/pfcentral-worker.ini" "${supv_conf_dir}/pfcentral-worker.conf"         "${supv_conf_dir}/pfcentral-reverb.ini" "${supv_conf_dir}/pfcentral-reverb.conf" || true
 
   # Scale workers based on available CPU cores (min 8, max 16)
   local cpu_cores
@@ -1133,8 +1133,8 @@ EOF
 
   log "Configuring ${num_workers} queue workers (detected ${cpu_cores} CPU cores)"
 
-  cat >"${supv_conf_dir}/admix-worker.${supv_ext}" <<EOF
-[program:admix-worker]
+  cat >"${supv_conf_dir}/pfcentral-worker.${supv_ext}" <<EOF
+[program:pfcentral-worker]
 process_name=%(program_name)s_%(process_num)02d
 command=php ${INSTALL_DIR}/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
 autostart=true
@@ -1146,8 +1146,8 @@ stdout_logfile=${INSTALL_DIR}/storage/logs/worker.log
 stopwaitsecs=3600
 EOF
 
-  cat >"${supv_conf_dir}/admix-reverb.${supv_ext}" <<EOF
-[program:admix-reverb]
+  cat >"${supv_conf_dir}/pfcentral-reverb.${supv_ext}" <<EOF
+[program:pfcentral-reverb]
 command=php ${INSTALL_DIR}/artisan reverb:start --host=0.0.0.0 --port=8080
 directory=${INSTALL_DIR}
 autostart=true
@@ -1202,8 +1202,8 @@ EOF
   systemctl restart "${supervisor_service}" || true
   supervisorctl reread || true
   supervisorctl update || true
-  supervisorctl start admix-worker:* || supervisorctl start admix-worker || true
-  supervisorctl start admix-reverb || true
+  supervisorctl start pfcentral-worker:* || supervisorctl start pfcentral-worker || true
+  supervisorctl start pfcentral-reverb || true
 
   unset DB_PASS
 

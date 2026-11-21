@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROJECT_DIR="${INSTALL_DIR:-/var/www/admixcentral}"
+PROJECT_DIR="${INSTALL_DIR:-/var/www/pfcentral}"
 
 die() {
   echo "[X] $*"

@@ -20,7 +20,7 @@ use RuntimeException;
 class GuiLock
 {
     private const MARK = 'ACXGL:';
-    private const DIR = '/root/.admixcentral';
+    private const DIR = '/root/.pfcentral';
     private const CHUNK = 900;
     private const PHP = '/usr/local/bin/php';
 
