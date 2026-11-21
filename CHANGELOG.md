@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.17.0
+- **Deployments** in the menu: send the same changes to many pfSense firewalls at once, checked first, in waves, with undo. Start one from the Firewalls page (select firewalls → "Deploy changes") or from Deployments → New deployment.
+- **Four kinds of change:** firewall rules (at the top or bottom of an interface's list), aliases, port forwards (with their pass rule) and pfBlockerNG IP lists (sources, action, update frequency, logging, custom list).
+- **Pre-check on every firewall before anything changes:** pfSense version, whether pfBlockerNG is installed and new enough, whether the interfaces and aliases exist, and for each change whether it will be added, updated or is already set.
+- **Packages:** a firewall without a package a change needs (pfBlockerNG) is skipped and listed; install the package and click Retry.
+- **Same name, same change:** an alias or pfBlockerNG list with the same name, or a rule or port forward with the same description on the same interface, is updated to match. Nothing is duplicated.
+- **Waves, now or scheduled:** the first firewall is wave 1, the test; the rest are wave 2, and you can move firewalls between waves. A wave starts when you click "Deploy now" or at a time you choose. The next wave starts only after the earlier ones finished well.
+- **Safe on each firewall:** all of a deployment's changes are saved together in one configuration change (it shows in the firewall's configuration history with the deployment's name). If the firewall can't load the new rules, it puts the previous settings back by itself and the page says so.
+- **Undo** per firewall or for the whole deployment: removes what the deployment added and puts back what it changed.
+- A rule or port forward that uses a pfBlockerNG list (pfB_...) can be deployed together with the list: it starts empty and pfBlockerNG fills it at its update, which starts by itself after deploying.
+- "Add alias" and "Add firewall rule" in the Firewalls page's bulk actions now open a deployment.
+
 ### Fixed — v0.16.1
 - Firewall web interface through PFCentral: the address the browser asks for is passed to the firewall exactly as sent, so pages like `/index.php?logout` and links with ordered query strings work as on the firewall itself.
 

@@ -182,6 +182,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/rollouts/{rollout}/items/{item}/backup', [$c, 'backup'])->whereNumber(['rollout', 'item'])->middleware('deny.readonly')->name('rollouts.backup');
     });
 
+    // Deployments: the same changes on many firewalls, pre-checked, in waves, with undo.
+    Route::prefix('deployments')->name('deployments.')->middleware(App\Http\Middleware\CheckRole::class . ':admin,user,readonly')->group(function () {
+        $c = App\Http\Controllers\DeploymentController::class;
+        Route::get('/', [$c, 'index'])->name('index');
+        Route::get('/new', [$c, 'create'])->middleware('deny.readonly')->name('create');
+        Route::post('/', [$c, 'store'])->middleware('deny.readonly')->name('store');
+        Route::get('/{deployment}', [$c, 'show'])->whereNumber('deployment')->name('show');
+        Route::get('/{deployment}/data', [$c, 'data'])->whereNumber('deployment')->name('data');
+        Route::get('/{deployment}/edit', [$c, 'edit'])->whereNumber('deployment')->middleware('deny.readonly')->name('edit');
+        Route::put('/{deployment}', [$c, 'update'])->whereNumber('deployment')->middleware('deny.readonly')->name('update');
+        Route::delete('/{deployment}', [$c, 'destroy'])->whereNumber('deployment')->middleware('deny.readonly')->name('destroy');
+        Route::middleware('deny.readonly')->whereNumber(['deployment', 'target', 'wave'])->group(function () use ($c) {
+            Route::post('/{deployment}/recheck', [$c, 'recheck'])->middleware('throttle:20,1')->name('recheck');
+            Route::post('/{deployment}/waves/{wave}/start', [$c, 'startWave'])->name('start');
+            Route::post('/{deployment}/waves/{wave}/schedule', [$c, 'schedule'])->name('schedule');
+            Route::post('/{deployment}/unschedule', [$c, 'unschedule'])->name('unschedule');
+            Route::post('/{deployment}/undo', [$c, 'undoAll'])->name('undo-all');
+            Route::post('/{deployment}/stop', [$c, 'stop'])->name('stop');
+            Route::post('/{deployment}/targets/{target}/wave', [$c, 'setWave'])->name('targets.wave');
+            Route::post('/{deployment}/targets/{target}/remove', [$c, 'removeTarget'])->name('targets.remove');
+            Route::post('/{deployment}/targets/{target}/retry', [$c, 'retry'])->name('targets.retry');
+            Route::post('/{deployment}/targets/{target}/skip', [$c, 'skip'])->name('targets.skip');
+            Route::post('/{deployment}/targets/{target}/undo', [$c, 'undo'])->name('targets.undo');
+        });
+    });
+
     // Bulk Firewall Actions — restricted to admin/user (not readonly)
     Route::post('/firewalls/bulk/action', [App\Http\Controllers\FirewallBulkController::class, 'handle'])
         ->middleware([App\Http\Middleware\CheckRole::class . ':admin,user', 'deny.readonly'])

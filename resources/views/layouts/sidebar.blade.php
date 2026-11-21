@@ -164,6 +164,17 @@
                     class="transition-opacity duration-300">{{ __('Upgrades') }}</span>
             </a>
 
+            <a href="{{ route('deployments.index') }}"
+                class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('deployments.*') ? 'active' : '' }}">
+                <svg class="mr-3 h-6 w-6 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 6h10M4 12h10M4 18h10M17 8l3 4-3 4" />
+                </svg>
+                <span :class="collapsed ? 'md:hidden' : 'block'"
+                    class="transition-opacity duration-300">{{ __('Deployments') }}</span>
+            </a>
+
             @if(Auth::user()->isAdmin() || Auth::user()->isUser())
                 <a href="{{ route('companies.index') }}"
                     class="group flex items-center px-2 py-2 text-base font-medium rounded-md sidebar-nav-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">

@@ -633,10 +633,15 @@
                                         <option value="update_rest_api">Update REST API</option>
                                         <option value="create_package">Install Package</option>
                                     </optgroup>
+                                    <optgroup label="Deploy (checked first, with undo)">
+                                        <option value="deploy">Deploy changes…</option>
+                                        <option value="deploy_rule">Firewall rule</option>
+                                        <option value="deploy_alias">Alias</option>
+                                        <option value="deploy_nat">Port forward</option>
+                                        <option value="deploy_pfb_ipv4">pfBlockerNG IP list</option>
+                                    </optgroup>
                                     <optgroup label="Configuration (Add to All)">
-                                        <option value="create_alias">Add Alias</option>
                                         <option value="create_nat">Add NAT 1:1 / Port Forward</option>
-                                        <option value="create_rule">Add Firewall Rule</option>
                                         <option value="create_ipsec">Add IPSec Tunnel</option>
                                     </optgroup>
                                 </select>
@@ -1399,6 +1404,13 @@
 
                     if (ids.length === 0) {
                         alert('Please select at least one firewall.');
+                        return;
+                    }
+
+                    if (action === 'deploy' || action.startsWith('deploy_')) {
+                        const kind = action === 'deploy' ? '' : action.replace('deploy_', '');
+                        const q = ids.map(id => `firewall_ids[]=${id}`).join('&') + (kind ? `&kind=${kind}` : '');
+                        window.location.href = `{{ route('deployments.create') }}?${q}`;
                         return;
                     }
 

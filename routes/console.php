@@ -57,3 +57,10 @@ Schedule::call(fn () => \App\Services\Security\FirewallGui::cleanUp())
     ->name('firewall-gui-cleanup')
     ->withoutOverlapping(10)
     ->onOneServer();
+
+// Deployments: start waves scheduled for now.
+Schedule::call(fn () => \App\Services\Deploy\DeployRunner::runDue())
+    ->everyMinute()
+    ->name('deployments-due')
+    ->withoutOverlapping(5)
+    ->onOneServer();
