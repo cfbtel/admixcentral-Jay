@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — v0.16.1
+- Firewall web interface through PFCentral: the address the browser asks for is passed to the firewall exactly as sent, so pages like `/index.php?logout` and links with ordered query strings work as on the firewall itself.
+
 ### Changed — v0.16.0
 - **Faster moving between pages.** In Chrome and Edge, PFCentral starts loading a page while the pointer rests on its link, so most clicks open at once. Links that download, sign in or out, or restart something are never loaded ahead.
 - Pages now swap without a white flash and the sidebar stays put. A thin bar at the top shows when a page takes more than a moment.

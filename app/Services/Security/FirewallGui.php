@@ -108,7 +108,8 @@ class FirewallGui
     /** Requests on the web interface host name. */
     public static function handle(Request $request): Response
     {
-        $path = '/' . ltrim($request->path(), '/');
+        // The path exactly as the browser sent it ("/index.php" stays "/index.php", whatever the web server set as the script).
+        $path = '/' . ltrim((string) parse_url($request->getRequestUri(), PHP_URL_PATH), '/');
         if (str_starts_with($path, self::PREFIX . '/enter/')) {
             return self::enter($request, substr($path, strlen(self::PREFIX . '/enter/')));
         }
@@ -184,7 +185,8 @@ class FirewallGui
                 $headers[$h] = $request->headers->get($h);
             }
         }
-        $url = $base . $path . (($q = $request->getQueryString()) ? '?' . $q : '');
+        $q = (string) parse_url($request->getRequestUri(), PHP_URL_QUERY);
+        $url = $base . $path . ($q !== '' ? '?' . $q : '');
         $method = strtoupper($request->getMethod());
         $client = self::client($fw, $jar)->withHeaders($headers);
 
