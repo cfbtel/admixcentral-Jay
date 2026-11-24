@@ -53,4 +53,4 @@ systemctl start pfcentral-maintenance.service || true
 
 echo "PFCentral maintenance timer installed for $APP_DIR."
 tail -n 8 /var/log/pfcentral-maintenance.log 2>/dev/null || true
-systemctl list-timers pfcentral-maintenance.timer --no-pager | head -2
+systemctl list-timers pfcentral-maintenance.timer --no-pager 2>/dev/null | head -2 || true
